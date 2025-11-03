@@ -1,0 +1,8 @@
+streamlit
+pandas
+numpy
+requests
+httpx
+altair
+python-dateutil
+pyjwt

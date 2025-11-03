@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+.env.*
+.venv/
+*.log
+alembic/versions/__pycache__/
+.finance_cache/
+.mypy_cache/
+.pytest_cache/
+node_modules/
+.streamlit/
+__init__.pyc
+.DS_Store
