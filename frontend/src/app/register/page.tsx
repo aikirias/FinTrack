@@ -24,7 +24,11 @@ export default function RegisterPage() {
       await register(form);
       router.replace('/dashboard');
     } catch (err) {
-      setError((err as Error).message);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(String(err));
+      }
     } finally {
       setSubmitting(false);
     }
