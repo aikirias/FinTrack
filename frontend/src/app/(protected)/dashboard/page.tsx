@@ -53,7 +53,6 @@ export default function DashboardPage() {
   const [rates, setRates] = useState<ExchangeRate | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<(typeof timeOptions)[number]['value']>('3m');
-  const [insightTab, setInsightTab] = useState<'expenses' | 'income'>('expenses');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -61,13 +60,10 @@ export default function DashboardPage() {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   });
   const handleCategorySelect = (categoryId: number) => {
-    setSelectedCategoryId((prev) => {
-      const next = prev === categoryId ? null : categoryId;
-      setDetailOpen(next !== null);
-      return next;
-    });
+    setSelectedCategoryId((prev) => (prev === categoryId ? null : categoryId));
+    setDetailOpen(false);
   };
-  const handleOpenDetail = () => {
+  const openCategoryDetail = () => {
     if (selectedCategoryId) setDetailOpen(true);
   };
   const handleExport = () => {
@@ -156,6 +152,17 @@ export default function DashboardPage() {
       setDetailOpen(false);
     }
   }, [selectedCategoryId]);
+
+  useEffect(() => {
+    if (detailOpen) {
+      const original = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = original;
+      };
+    }
+    return undefined;
+  }, [detailOpen]);
 
   const categoryMap = useMemo(() => {
     const map: Record<number, Category> = {};
@@ -315,39 +322,6 @@ export default function DashboardPage() {
       setSelectedCategoryId(null);
     }
   }, [expenseSummary.entries, selectedCategoryId]);
-
-  const lastMovements = useMemo(() => {
-    return [...filteredTransactions]
-      .sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime())
-      .slice(0, 5);
-  }, [filteredTransactions]);
-
-  const expenseInsights = useMemo(() => {
-    const totals: Record<string, number> = {};
-    filteredTransactions.forEach((tx) => {
-      const cat = tx.category_id ? categoryMap[tx.category_id] : null;
-      if (cat?.type !== 'expense') return;
-      const sub = tx.subcategory_id ? categoryMap[tx.subcategory_id] : null;
-      const key = `${cat.name} ${sub ? `- ${sub.name}` : ''}`;
-      totals[key] = (totals[key] || 0) + parseFloat(tx.amount_ars);
-    });
-    const entries = Object.entries(totals)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
-    return {
-      chart: {
-        labels: entries.map(([label]) => label),
-        datasets: [
-          {
-            label: 'Gasto',
-            data: entries.map(([, value]) => value),
-            backgroundColor: '#fb7185',
-          },
-        ],
-      },
-      entries,
-    };
-  }, [filteredTransactions, categoryMap]);
 
   const incomeInsights = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -594,260 +568,192 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,420px),1fr]">
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Distribución de gastos</h3>
-              <span className="text-sm text-slate-300">Total {currencyFormatter.format(expenseSummary.total)}</span>
-            </div>
-            {expenseSummary.entries.length ? (
-              <div className="flex flex-col gap-4">
-                <div className="mx-auto w-60">
-                  <Doughnut
-                    data={expenseSummary.chart}
-                    options={{
-                      cutout: '60%',
-                      plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                          callbacks: {
-                            label: (ctx) => `${ctx.label}: ${currencyFormatter.format(Number(ctx.formattedValue))}`,
-                          },
-                        },
-                      },
-                    }}
-                  />
-                </div>
-                <ul className="flex-1 space-y-2">
-                  {expenseSummary.entries.map((entry, index) => {
-                    const { id, label, value } = entry;
-                    const pct = expenseSummary.total ? (value / expenseSummary.total) * 100 : 0;
-                    const emoji = emojiMap[label.split(' ')[0]] ?? '💸';
-                    const color = expenseSummary.colors[index % expenseSummary.colors.length];
-                    const selected = selectedCategoryId === id;
-                    return (
-                      <li key={`${id}-${label}`}>
-                        <button
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => handleCategorySelect(id)}
-                          className={`flex w-full items-center justify-between rounded-xl border bg-black/20 px-3 py-2 text-left transition ${
-                            selected ? 'border-white/40 bg-white/10 shadow-lg shadow-rose-500/10' : 'border-white/5'
-                          }`}
-                          style={{ borderColor: selected ? color : undefined }}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-xl" style={{ textShadow: '0 0 6px rgba(0,0,0,0.3)' }}>{emoji}</span>
-                            <div>
-                              <p className="font-semibold text-white">{label}</p>
-                              <p className="text-xs text-slate-400">{pct.toFixed(1)}%</p>
-                            </div>
-                          </div>
-                          <span className="font-semibold" style={{ color }}>
-                            {currencyFormatter.format(value)}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400">Sin datos suficientes.</p>
-            )}
-          </div>
-          <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-widest text-slate-400">Detalle por categoría</p>
-                <h3 className="text-lg font-semibold">
-                  {selectedCategoryData ? (
-                    <>
-                      <span className="mr-1">
-                        {emojiMap[selectedCategoryData.category.name] ??
-                          emojiMap[selectedCategoryData.category.name.split(' ')[0]] ??
-                          '💸'}
-                      </span>
-                      {selectedCategoryData.category.name}
-                    </>
-                  ) : (
-                    'Elegí una categoría'
-                  )}
-                </h3>
-              </div>
-              {selectedCategoryData && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedCategoryId(null)}
-                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200 hover:bg-white/10"
-                >
-                  Limpiar
-                </button>
-              )}
-            </div>
-            {selectedCategoryData ? (
-              <div className="mt-4 space-y-4">
-                <div>
-                  <p className="text-3xl font-semibold text-rose-200">{currencyFormatter.format(selectedCategoryData.total)}</p>
-                  <p className="text-xs text-slate-400">
-                    {(selectedCategoryData.share * 100).toFixed(1)}% del gasto del período · {selectedCategoryData.count} movimientos ·
-                    Ticket promedio {currencyFormatter.format(selectedCategoryData.avgTicket)}
-                  </p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <p className="text-sm text-slate-300">Subcategorías</p>
-                    {selectedCategoryData.subEntries.length ? (
-                      <ul className="mt-2 space-y-2 text-sm text-slate-200">
-                        {selectedCategoryData.subEntries.map((entry) => {
-                          const share = selectedCategoryData.total ? (entry.value / selectedCategoryData.total) * 100 : 0;
-                          return (
-                            <li key={entry.label} className="rounded-xl border border-white/5 bg-black/20 p-3">
-                              <div className="flex items-center justify-between">
-                                <span>{entry.label}</span>
-                                <span className="font-semibold">{currencyFormatter.format(entry.value)}</span>
-                              </div>
-                              <div className="mt-2 h-1.5 rounded-full bg-white/5">
-                                <div className="h-full rounded-full bg-rose-400" style={{ width: `${Math.min(100, share)}%` }} />
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : (
-                      <p className="mt-2 text-xs text-slate-400">No hay subcategorías con movimientos.</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-300">Ritmo de gasto</p>
-                    {selectedCategoryData.timelineChart.labels.length > 0 ? (
-                      <Line
-                        data={selectedCategoryData.timelineChart}
-                        options={{
-                          plugins: { legend: { display: false } },
-                          scales: {
-                            x: { ticks: { color: '#cbd5f5' } },
-                            y: { ticks: { color: '#cbd5f5' } },
-                          },
-                        }}
-                      />
-                    ) : (
-                      <p className="mt-2 text-xs text-slate-400">Aún no hay datos temporales.</p>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-300">Últimos movimientos</p>
-                  <div className="mt-2 space-y-2">
-                    {selectedCategoryData.recentTransactions.map((tx) => (
-                      <div
-                        key={tx.id}
-                        className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-sm text-slate-200"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span>{new Date(tx.transaction_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
-                          <span className="font-semibold text-rose-200">-{currencyFormatter.format(parseFloat(tx.amount_ars))}</span>
-                        </div>
-                        <p className="text-xs text-slate-400">
-                          {accountMap[tx.account_id]?.name ?? 'Cuenta'}
-                          {tx.notes ? ` · ${tx.notes}` : ''}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleOpenDetail}
-                    className="text-sm font-semibold text-rose-200 hover:text-rose-100"
-                  >
-                    Ver detalle completo →
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="mt-4 text-sm text-slate-400">
-                Seleccioná una categoría para analizar sus subcategorías, ritmo temporal y últimas operaciones.
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-          <h3 className="mb-4 text-lg font-semibold">Evolución mensual</h3>
-          <Line
-            data={lineData}
-            options={{
-              plugins: { legend: { labels: { color: '#cbd5f5' } } },
-              scales: {
-                x: { ticks: { color: '#cbd5f5' } },
-                y: { ticks: { color: '#cbd5f5' } },
-              },
-            }}
-          />
-        </div>
+      <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+        <h3 className="mb-4 text-lg font-semibold">Evolución mensual</h3>
+        <Line
+          data={lineData}
+          options={{
+            plugins: { legend: { labels: { color: '#cbd5f5' } } },
+            scales: {
+              x: { ticks: { color: '#cbd5f5' } },
+              y: { ticks: { color: '#cbd5f5' } },
+            },
+          }}
+        />
       </div>
 
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/5 bg-white/5 p-4 lg:col-span-2">
-          <h3 className="mb-4 text-lg font-semibold">Últimos movimientos</h3>
-          <div className="space-y-3">
-            {lastMovements.map((tx) => {
-              const cat = tx.category_id ? categoryMap[tx.category_id] : null;
-              const amount = parseFloat(tx.amount_ars);
-              const isIncome = cat?.type === 'income';
-              return (
-                <div key={tx.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3">
-                  <div>
-                    <p className="font-semibold text-white">{cat?.name ?? 'Sin categoría'}</p>
-                    <p className="text-xs text-slate-400">{new Date(tx.transaction_date).toLocaleString('es-AR')}</p>
-                  </div>
-                  <p className={`text-sm font-semibold ${isIncome ? 'text-emerald-300' : 'text-rose-300'}`}>
-                    {isIncome ? '+' : '-'}{currencyFormatter.format(amount)}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-          <h3 className="mb-4 text-lg font-semibold">Distribución diaria</h3>
-          <Bar
-            data={{
-              labels: lastMovements.map((tx) => new Date(tx.transaction_date).toLocaleDateString('es-AR')),
-              datasets: [
-                {
-                  label: 'Saldo',
-                  data: lastMovements.map((tx) => {
-                    const cat = tx.category_id ? categoryMap[tx.category_id] : null;
-                    const amount = parseFloat(tx.amount_ars);
-                    return cat?.type === 'income' ? amount : -amount;
-                  }),
-                  backgroundColor: lastMovements.map((tx) => {
-                    const cat = tx.category_id ? categoryMap[tx.category_id] : null;
-                    return cat?.type === 'income' ? '#22d3ee' : '#fb7185';
-                  }),
-                },
-              ],
-            }}
-            options={{
-              plugins: { legend: { display: false } },
-              scales: {
-                x: { ticks: { color: '#cbd5f5' } },
-                y: { ticks: { color: '#cbd5f5' } },
-              },
-            }}
-          />
-          {rates && (
-            <div className="mt-4 text-xs text-slate-400 space-y-1">
-              <p>USD oficial: {rates.usd_ars_oficial} · USD blue: {rates.usd_ars_blue ?? 's/d'}</p>
-              <p>BTC: {usdFormatter.format(parseFloat(rates.btc_usd))}</p>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Distribución de gastos</h3>
+            <span className="text-sm text-slate-300">Total {currencyFormatter.format(expenseSummary.total)}</span>
+          </div>
+          {expenseSummary.entries.length ? (
+            <div className="flex flex-col gap-4">
+              <div className="mx-auto w-60">
+                <Doughnut
+                  data={expenseSummary.chart}
+                  options={{
+                    cutout: '60%',
+                    plugins: {
+                      legend: { display: false },
+                      tooltip: {
+                        callbacks: {
+                          label: (ctx) => `${ctx.label}: ${currencyFormatter.format(Number(ctx.formattedValue))}`,
+                        },
+                      },
+                    },
+                  }}
+                />
+              </div>
+              <ul className="flex-1 space-y-2">
+                {expenseSummary.entries.map((entry, index) => {
+                  const { id, label, value } = entry;
+                  const pct = expenseSummary.total ? (value / expenseSummary.total) * 100 : 0;
+                  const emoji = emojiMap[label.split(' ')[0]] ?? '💸';
+                  const color = expenseSummary.colors[index % expenseSummary.colors.length];
+                  const selected = selectedCategoryId === id;
+                  return (
+                    <li key={`${id}-${label}`}>
+                      <button
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => handleCategorySelect(id)}
+                        className={`flex w-full items-center justify-between rounded-xl border bg-black/20 px-3 py-2 text-left transition ${
+                          selected ? 'border-white/40 bg-white/10 shadow-lg shadow-rose-500/10' : 'border-white/5'
+                        }`}
+                        style={{ borderColor: selected ? color : undefined }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl" style={{ textShadow: '0 0 6px rgba(0,0,0,0.3)' }}>{emoji}</span>
+                          <div>
+                            <p className="font-semibold text-white">{label}</p>
+                            <p className="text-xs text-slate-400">{pct.toFixed(1)}%</p>
+                          </div>
+                        </div>
+                        <span className="font-semibold" style={{ color }}>
+                          {currencyFormatter.format(value)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
+          ) : (
+            <p className="text-sm text-slate-400">Sin datos suficientes.</p>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-slate-400">Detalle por categoría</p>
+              <h3 className="text-lg font-semibold">
+                {selectedCategoryData ? (
+                  <>
+                    <span className="mr-1">
+                      {emojiMap[selectedCategoryData.category.name] ??
+                        emojiMap[selectedCategoryData.category.name.split(' ')[0]] ??
+                        '💸'}
+                    </span>
+                    {selectedCategoryData.category.name}
+                  </>
+                ) : (
+                  'Elegí una categoría'
+                )}
+              </h3>
+            </div>
+            {selectedCategoryData && (
+              <button
+                type="button"
+                onClick={openCategoryDetail}
+                className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200 hover:bg-white/10"
+              >
+                Ver detalle
+              </button>
+            )}
+          </div>
+          {selectedCategoryData ? (
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-3xl font-semibold text-rose-200">{currencyFormatter.format(selectedCategoryData.total)}</p>
+                <p className="text-xs text-slate-400">
+                  {(selectedCategoryData.share * 100).toFixed(1)}% del gasto del período · {selectedCategoryData.count} movimientos ·
+                  Ticket promedio {currencyFormatter.format(selectedCategoryData.avgTicket)}
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-sm text-slate-300">Subcategorías</p>
+                  {selectedCategoryData.subEntries.length ? (
+                    <ul className="mt-2 space-y-2 text-sm text-slate-200">
+                      {selectedCategoryData.subEntries.map((entry) => {
+                        const share = selectedCategoryData.total ? (entry.value / selectedCategoryData.total) * 100 : 0;
+                        return (
+                          <li key={entry.label} className="rounded-xl border border-white/5 bg-black/20 p-3">
+                            <div className="flex items-center justify-between">
+                              <span>{entry.label}</span>
+                              <span className="font-semibold">{currencyFormatter.format(entry.value)}</span>
+                            </div>
+                            <div className="mt-2 h-1.5 rounded-full bg-white/5">
+                              <div className="h-full rounded-full bg-rose-400" style={{ width: `${Math.min(100, share)}%` }} />
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-400">No hay subcategorías con movimientos.</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm text-slate-300">Ritmo de gasto</p>
+                  {selectedCategoryData.timelineChart.labels.length > 0 ? (
+                    <Line
+                      data={selectedCategoryData.timelineChart}
+                      options={{
+                        plugins: { legend: { display: false } },
+                        scales: {
+                          x: { ticks: { color: '#cbd5f5' } },
+                          y: { ticks: { color: '#cbd5f5' } },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-400">Aún no hay datos temporales.</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-slate-300">Últimos movimientos</p>
+                <div className="mt-2 space-y-2">
+                  {selectedCategoryData.recentTransactions.map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-sm text-slate-200"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{new Date(tx.transaction_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
+                        <span className="font-semibold text-rose-200">-{currencyFormatter.format(parseFloat(tx.amount_ars))}</span>
+                      </div>
+                      <p className="text-xs text-slate-400">
+                        {accountMap[tx.account_id]?.name ?? 'Cuenta'}
+                        {tx.notes ? ` · ${tx.notes}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-400">
+              Seleccioná una categoría para analizar sus subcategorías, ritmo temporal y últimas operaciones.
+            </p>
           )}
         </div>
       </div>
+
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
@@ -951,102 +857,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold">Insights detallados</h3>
-          <div className="flex gap-2 rounded-full border border-white/10 bg-black/20 p-1">
-            <button
-              onClick={() => setInsightTab('expenses')}
-              className={`rounded-full px-4 py-1 text-sm font-semibold ${
-                insightTab === 'expenses' ? 'bg-white text-primary' : 'text-slate-300'
-              }`}
-            >
-              Gastos
-            </button>
-            <button
-              onClick={() => setInsightTab('income')}
-              className={`rounded-full px-4 py-1 text-sm font-semibold ${
-                insightTab === 'income' ? 'bg-white text-primary' : 'text-slate-300'
-              }`}
-            >
-              Ingresos
-            </button>
-          </div>
-        </div>
-        {insightTab === 'expenses' ? (
-          expenseInsights.chart.labels.length ? (
-            <div className="space-y-6">
-              <Bar
-                data={expenseInsights.chart}
-                options={{
-                  plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                      callbacks: {
-                        label: (ctx) => `${ctx.label}: ${currencyFormatter.format(Number(ctx.parsed.x ?? 0))}`,
-                      },
-                    },
-                  },
-                  indexAxis: 'y',
-                  scales: {
-                    x: {
-                      ticks: { color: '#cbd5f5' },
-                      grid: { color: 'rgba(148,163,184,0.15)' },
-                    },
-                    y: {
-                      ticks: { color: '#cbd5f5' },
-                      grid: { color: 'rgba(148,163,184,0.05)' },
-                    },
-                  },
-                }}
-              />
-              <div className="space-y-2">
-                {expenseInsights.entries.map(([label, value], idx) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/20 px-4 py-2 text-sm text-slate-200"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: colorPalette[idx % colorPalette.length] }}
-                      />
-                      <span>{label}</span>
-                    </div>
-                    <span className="font-semibold text-rose-200">{currencyFormatter.format(value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-400">Sin datos suficientes.</p>
-          )
-        ) : incomeInsights.chart.labels.length ? (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Doughnut
-              data={incomeInsights.chart}
-              options={{
-                plugins: { legend: { labels: { color: '#cbd5f5' } } },
-              }}
-            />
-            <ul className="space-y-2 text-sm text-slate-300">
-              {incomeInsights.entries.map(([label, value]) => (
-                <li key={label} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/20 px-3 py-2">
-                  <span>{label}</span>
-                  <span className="font-semibold text-emerald-200">{currencyFormatter.format(value)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-400">Sin ingresos registrados en el período.</p>
-        )}
-      </div>
 
       {detailOpen && selectedCategoryData && (
-        <div className="fixed inset-0 z-40 flex">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDetailOpen(false)} />
-          <div className="relative ml-auto flex h-full w-full max-w-5xl flex-col overflow-y-auto bg-slate-950/95 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950 px-4 py-8 sm:px-8">
+          <div className="mx-auto flex w-full max-w-5xl flex-col space-y-6">
             <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
               <div>
                 <p className="text-xs uppercase tracking-widest text-slate-400">Detalle de categoría</p>
@@ -1064,7 +878,7 @@ export default function DashboardPage() {
                 Cerrar
               </button>
             </div>
-            <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                 <p className="text-xs uppercase tracking-widest text-slate-400">Total período</p>
                 <p className="text-2xl font-semibold text-white">{currencyFormatter.format(selectedCategoryData.total)}</p>
