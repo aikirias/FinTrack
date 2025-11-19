@@ -34,9 +34,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "8501:8501"
-    volumes:
-      - ./frontend:/app
+      - "3000:3000"
 
 volumes:
   finance_db_data:

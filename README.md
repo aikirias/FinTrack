@@ -2,7 +2,7 @@
 
 FinTrack es un MVP completo para registrar ingresos y gastos multiusuario con control simultáneo en ARS, USD y BTC. El stack se entrega dockerizado e incluye:
 
-- **Frontend** en Streamlit + Altair para dashboards interactivos, captura rápida de movimientos, administración de cuentas y categorías.
+- **Frontend** en Next.js + React + Tailwind para dashboards responsive, carga de movimientos, administración de cuentas y categorías.
 - **Backend** en FastAPI + SQLAlchemy + Alembic con autenticación JWT por cookie HttpOnly, scheduler para cotizaciones y tests en pytest.
 - **Base de datos** PostgreSQL 15.
 
@@ -13,7 +13,7 @@ El objetivo es simplificar el seguimiento de ingresos (USD), gastos (ARS) y ahor
 ```
 .
 ├── backend/        # FastAPI, modelos, CRUD, migraciones, tests
-├── frontend/       # App Streamlit con dashboards y formularios
+├── frontend/       # App React/Next.js (Tailwind, Chart.js)
 ├── .envs/          # Templates de variables de entorno (dev/prod)
 └── docker-compose.yml
 ```
@@ -26,10 +26,10 @@ El objetivo es simplificar el seguimiento de ingresos (USD), gastos (ARS) y ahor
 - Tests con pytest cubriendo autenticación, conversiones y scheduler.
 
 ### Frontend
-- Flujo de registro/login con mantenimiento de sesión vía cookie (gestionada desde el servidor Streamlit).
-- Dashboard con métricas, evolución temporal, distribución y heatmap de gastos.
-- Formulario de captura rápida con previsualización de conversiones.
-- ABM de categorías (jerárquicas) y cuentas.
+- Flujo de registro/login con mantenimiento de sesión vía cookie (FastAPI emite JWT HttpOnly).
+- Dashboard responsive: métricas, evolución mensual, top categorías, últimos movimientos.
+- Formularios para registrar transacciones, administrar categorías/subcategorías y cuentas.
+- UI dark-mode inspirada en apps móviles de finanzas, lista para usarse en desktop o mobile web.
 
 ## Configuración
 
@@ -47,7 +47,7 @@ El objetivo es simplificar el seguimiento de ingresos (USD), gastos (ARS) y ahor
    docker-compose up --build
    ```
    - El backend ejecuta automáticamente `alembic upgrade head` y `python app/initial_data.py` antes de iniciar `uvicorn`.
-   - El frontend quedará disponible en http://localhost:8501 y consumirá el backend en http://localhost:8000.
+   - El frontend quedará disponible en http://localhost:3000 y consumirá el backend en http://localhost:8000.
 
 3. Accedé a la app web, registrá un usuario y comenzá a cargar movimientos.
 
@@ -68,12 +68,10 @@ El objetivo es simplificar el seguimiento de ingresos (USD), gastos (ARS) y ahor
 2. Frontend
    ```bash
    cd frontend
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   streamlit run main.py
+   npm install
+   npm run dev
    ```
-   Ajustá `BACKEND_INTERNAL_URL`/`BACKEND_EXTERNAL_URL` según corresponda.
+   Ajustá `NEXT_PUBLIC_API_URL` según corresponda.
 
 ## Tests
 

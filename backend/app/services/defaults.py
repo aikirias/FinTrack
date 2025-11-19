@@ -29,13 +29,17 @@ DEFAULT_CATEGORIES: tuple[DefaultCategory, ...] = (
     DefaultCategory(name="Honorarios", type=CategoryType.INCOME),
     DefaultCategory(name="Rentas", type=CategoryType.INCOME),
     DefaultCategory(name="Devoluciones", type=CategoryType.INCOME),
-    DefaultCategory(name="Otros", type=CategoryType.INCOME),
+    DefaultCategory(name="Otros ingresos", type=CategoryType.INCOME),
     DefaultCategory(
-        name="Hogar",
+        name="Servicios",
         type=CategoryType.EXPENSE,
         children=(
-            DefaultCategory(name="Alquiler", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Servicios", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Luz", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Gas", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Internet", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Celular", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Expensas", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Banco", type=CategoryType.EXPENSE),
         ),
     ),
     DefaultCategory(
@@ -44,68 +48,87 @@ DEFAULT_CATEGORIES: tuple[DefaultCategory, ...] = (
         children=(
             DefaultCategory(name="Supermercado", type=CategoryType.EXPENSE),
             DefaultCategory(name="Delivery", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Restaurantes", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Suplementos / Vitaminas", type=CategoryType.EXPENSE),
+        ),
+    ),
+    DefaultCategory(
+        name="Regalos",
+        type=CategoryType.EXPENSE,
+        children=(
+            DefaultCategory(name="Cumpleaños", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Pareja", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Eventos especiales", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Padres", type=CategoryType.EXPENSE),
         ),
     ),
     DefaultCategory(
         name="Transporte",
         type=CategoryType.EXPENSE,
         children=(
-            DefaultCategory(name="Transporte Público", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Combustible", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Mantenimiento", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Taxi / Uber / Cabify", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Transporte público", type=CategoryType.EXPENSE),
+        ),
+    ),
+    DefaultCategory(
+        name="Viajes",
+        type=CategoryType.EXPENSE,
+        children=(
+            DefaultCategory(name="Pasajes", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Hospedaje", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Comidas", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Excursiones", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Equipaje", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Transporte", type=CategoryType.EXPENSE),
+        ),
+    ),
+    DefaultCategory(
+        name="Hogar",
+        type=CategoryType.EXPENSE,
+        children=(
+            DefaultCategory(name="Limpieza", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Muebles", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Electrodomésticos", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Decoración", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Reparaciones", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Mascotas", type=CategoryType.EXPENSE),
+        ),
+    ),
+    DefaultCategory(
+        name="Compras Personales",
+        type=CategoryType.EXPENSE,
+        children=(
+            DefaultCategory(name="Ropa", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Perfumería", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Tecnología", type=CategoryType.EXPENSE),
         ),
     ),
     DefaultCategory(
         name="Salud",
         type=CategoryType.EXPENSE,
         children=(
-            DefaultCategory(name="Obra Social", type=CategoryType.EXPENSE),
             DefaultCategory(name="Medicamentos", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Deportes", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Obra social", type=CategoryType.EXPENSE),
         ),
     ),
     DefaultCategory(
-        name="Educación",
+        name="Emprendimientos",
         type=CategoryType.EXPENSE,
-        children=(
-            DefaultCategory(name="Cursos", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Libros", type=CategoryType.EXPENSE),
-        ),
+        children=(DefaultCategory(name="Marketing", type=CategoryType.EXPENSE),),
     ),
     DefaultCategory(
         name="Ocio",
         type=CategoryType.EXPENSE,
         children=(
-            DefaultCategory(name="Salidas", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Streaming", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Viajes", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Cine", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Shows", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Libros", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Videojuegos", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Cursos", type=CategoryType.EXPENSE),
+            DefaultCategory(name="Salidas nocturnas", type=CategoryType.EXPENSE),
         ),
     ),
-    DefaultCategory(
-        name="Finanzas",
-        type=CategoryType.EXPENSE,
-        children=(
-            DefaultCategory(name="Tarjeta Crédito", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Impuestos", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Comisiones Bancarias", type=CategoryType.EXPENSE),
-        ),
-    ),
-    DefaultCategory(
-        name="Tecnología",
-        type=CategoryType.EXPENSE,
-        children=(
-            DefaultCategory(name="Suscripciones", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Hardware", type=CategoryType.EXPENSE),
-        ),
-    ),
-    DefaultCategory(
-        name="Ahorro/Inversión",
-        type=CategoryType.EXPENSE,
-        children=(
-            DefaultCategory(name="Compra USD", type=CategoryType.EXPENSE),
-            DefaultCategory(name="Compra BTC", type=CategoryType.EXPENSE),
-        ),
-    ),
-    DefaultCategory(name="Misceláneos", type=CategoryType.EXPENSE),
 )
 
 
