@@ -5,6 +5,9 @@ import { Providers } from "./providers";
 export const metadata: Metadata = {
   title: "FinTrack",
   description: "Seguimiento financiero multimoneda",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

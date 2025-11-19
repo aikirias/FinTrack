@@ -7,9 +7,11 @@ import type { Account, Category } from '@/types';
 export default function NewTransactionPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [transactionType, setTransactionType] = useState<'income' | 'expense' | 'transfer'>('expense');
   const [result, setResult] = useState<string | null>(null);
   const [form, setForm] = useState({
     account_id: '',
+    target_account_id: '',
     category_id: '',
     subcategory_id: '',
     currency_code: 'ARS',
@@ -28,28 +30,61 @@ export default function NewTransactionPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    setForm((prev) => ({ ...prev, category_id: '', subcategory_id: '' }));
+  }, [transactionType]);
+
   const flatCategories = categories.map((cat) => ({ id: cat.id, name: cat.name, type: cat.type, children: cat.children ?? [] }));
+  const filteredParents = flatCategories.filter((cat) => cat.type === transactionType);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setResult(null);
-    if (!form.account_id || !form.amount_original) {
+    if (!form.account_id || !form.amount_original || (transactionType === 'transfer' && !form.target_account_id)) {
       setResult('Completá los campos obligatorios.');
       return;
     }
+    if (transactionType === 'transfer' && form.target_account_id === form.account_id) {
+      setResult('Elegí dos cuentas distintas para transferir.');
+      return;
+    }
     const timestamp = new Date(`${form.date}T${form.time}:00`).toISOString();
-    await api.createTransaction({
+    const makePayload = (payload: Record<string, unknown>) => ({
       transaction_date: timestamp,
-      account_id: Number(form.account_id),
       currency_code: form.currency_code,
       rate_type: form.rate_type,
       amount_original: form.amount_original,
-      category_id: form.category_id ? Number(form.category_id) : null,
-      subcategory_id: form.subcategory_id ? Number(form.subcategory_id) : null,
       notes: form.notes || null,
+      ...payload,
     });
+
+    if (transactionType === 'transfer') {
+      await api.createTransaction(
+        makePayload({
+          account_id: Number(form.account_id),
+          category_id: null,
+          subcategory_id: null,
+        })
+      );
+      await api.createTransaction(
+        makePayload({
+          account_id: Number(form.target_account_id),
+          category_id: null,
+          subcategory_id: null,
+          amount_original: String(-Number(form.amount_original)),
+        })
+      );
+    } else {
+      await api.createTransaction(
+        makePayload({
+          account_id: Number(form.account_id),
+          category_id: form.category_id ? Number(form.category_id) : null,
+          subcategory_id: form.subcategory_id ? Number(form.subcategory_id) : null,
+        })
+      );
+    }
     setResult('Movimiento registrado');
-    setForm({ ...form, amount_original: '', notes: '' });
+    setForm({ ...form, amount_original: '', notes: '', category_id: '', subcategory_id: '', target_account_id: '' });
   };
 
   const selectedParent = flatCategories.find((cat) => String(cat.id) === form.category_id);
@@ -58,7 +93,21 @@ export default function NewTransactionPage() {
     <div className="max-w-3xl space-y-6">
       <h1 className="text-2xl font-semibold">Nueva transacción</h1>
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-white/5 bg-white/5 p-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-wrap gap-2 rounded-full border border-white/10 bg-black/20 p-1">
+          {(['expense', 'income', 'transfer'] as const).map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setTransactionType(type)}
+              className={`rounded-full px-4 py-1 text-sm font-semibold ${
+                transactionType === type ? 'bg-white text-primary' : 'text-slate-200'
+              }`}
+            >
+              {type === 'expense' ? 'Gasto' : type === 'income' ? 'Ingreso' : 'Transferencia'}
+            </button>
+          ))}
+        </div>
+        <div className={`grid gap-4 ${transactionType === 'transfer' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
           <div>
             <label className="text-sm text-slate-300">Cuenta</label>
             <select
@@ -75,6 +124,26 @@ export default function NewTransactionPage() {
               ))}
             </select>
           </div>
+          {transactionType === 'transfer' && (
+            <div>
+              <label className="text-sm text-slate-300">Cuenta destino</label>
+              <select
+                className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-2"
+                value={form.target_account_id}
+                onChange={(e) => setForm({ ...form, target_account_id: e.target.value })}
+                required
+              >
+                <option value="">Seleccioná cuenta</option>
+                {accounts
+                  .filter((account) => account.id !== Number(form.account_id))
+                  .map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="text-sm text-slate-300">Moneda</label>
             <select
@@ -141,7 +210,7 @@ export default function NewTransactionPage() {
               onChange={(e) => setForm({ ...form, category_id: e.target.value, subcategory_id: '' })}
             >
               <option value="">Sin categoría</option>
-              {flatCategories.map((cat) => (
+              {filteredParents.map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   {cat.name}
                 </option>
