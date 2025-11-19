@@ -19,6 +19,11 @@ import { Line, Doughnut, Bar } from 'react-chartjs-2';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Tooltip, Legend, BarElement);
 
 const currencyFormatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+const calendarAmountFormatter = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  maximumFractionDigits: 0,
+});
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const timeOptions = [
   { label: 'Mes actual', value: 'current', months: null },
@@ -55,6 +60,11 @@ export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<(typeof timeOptions)[number]['value']>('3m');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedDayDetail, setSelectedDayDetail] = useState<{
+    date: Date;
+    transactions: Transaction[];
+    total: number;
+  } | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -154,7 +164,11 @@ export default function DashboardPage() {
   }, [selectedCategoryId]);
 
   useEffect(() => {
-    if (detailOpen) {
+    setSelectedDayDetail(null);
+  }, [calendarMonth]);
+
+  useEffect(() => {
+    if (detailOpen || selectedDayDetail) {
       const original = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return () => {
@@ -162,7 +176,7 @@ export default function DashboardPage() {
       };
     }
     return undefined;
-  }, [detailOpen]);
+  }, [detailOpen, selectedDayDetail]);
 
   const categoryMap = useMemo(() => {
     const map: Record<number, Category> = {};
@@ -467,6 +481,7 @@ export default function DashboardPage() {
     const monthStart = new Date(year, monthIndex, 1);
     const monthEnd = new Date(year, monthIndex + 1, 0);
     const totals: Record<number, number> = {};
+    const dayTransactions: Record<number, Transaction[]> = {};
     transactions.forEach((tx) => {
       const cat = tx.category_id ? categoryMap[tx.category_id] : null;
       if (cat?.type !== 'expense') return;
@@ -474,11 +489,13 @@ export default function DashboardPage() {
       if (date.getFullYear() === year && date.getMonth() === monthIndex) {
         const day = date.getDate();
         totals[day] = (totals[day] || 0) + parseFloat(tx.amount_ars);
+        if (!dayTransactions[day]) dayTransactions[day] = [];
+        dayTransactions[day].push(tx);
       }
     });
     const highest = Object.values(totals).reduce((max, value) => Math.max(max, value), 0);
     const leadingEmpty = monthStart.getDay();
-    const cells: ({ day: number; amount: number; level: number } | null)[] = [];
+    const cells: ({ day: number; amount: number; level: number; transactions: Transaction[] } | null)[] = [];
     for (let i = 0; i < leadingEmpty; i += 1) cells.push(null);
     for (let day = 1; day <= monthEnd.getDate(); day += 1) {
       const amount = totals[day] || 0;
@@ -490,7 +507,7 @@ export default function DashboardPage() {
         else if (intensity >= 0.25) level = 2;
         else if (intensity > 0) level = 1;
       }
-      cells.push({ day, amount, level });
+      cells.push({ day, amount, level, transactions: dayTransactions[day] || [] });
     }
     while (cells.length % 7 !== 0) {
       cells.push(null);
@@ -503,8 +520,23 @@ export default function DashboardPage() {
       avg,
       max: highest,
       label: monthStart.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }),
+      monthStart,
     };
   }, [calendarMonth, transactions, categoryMap]);
+
+  const handleCalendarDayClick = (cell: { day: number; amount: number; transactions: Transaction[] }) => {
+    if (!calendarData) return;
+    if (!cell.transactions.length) return;
+    const date = new Date(calendarData.monthStart.getFullYear(), calendarData.monthStart.getMonth(), cell.day);
+    const ordered = [...cell.transactions].sort(
+      (a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+    );
+    setSelectedDayDetail({
+      date,
+      transactions: ordered,
+      total: cell.amount,
+    });
+  };
 
   const exportDisabled = filteredTransactions.length === 0;
 
@@ -777,21 +809,32 @@ export default function DashboardPage() {
                 ))}
               </div>
               <div className="mt-2 grid grid-cols-7 gap-2">
-                {calendarData.cells.map((cell, idx) =>
-                  cell ? (
-                    <div
+                {calendarData.cells.map((cell, idx) => {
+                  if (!cell) {
+                    return <div key={`empty-${idx}`} className="min-h-[4.5rem] rounded-xl border border-white/5" />;
+                  }
+                  const hasTransactions = cell.transactions.length > 0;
+                  return (
+                    <button
                       key={`${calendarMonth}-${cell.day}-${idx}`}
-                      className={`min-h-[4.5rem] rounded-xl border p-2 ${heatLevels[cell.level]}`}
+                      type="button"
+                      onClick={() => hasTransactions && handleCalendarDayClick(cell)}
+                      disabled={!hasTransactions}
+                      className={`flex min-h-[4.5rem] flex-col justify-between rounded-2xl border p-2 text-left transition ${
+                        heatLevels[cell.level]
+                      } ${hasTransactions ? 'hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-rose-400' : 'opacity-60'}`}
                     >
-                      <p className="text-sm font-semibold text-white">{cell.day}</p>
-                      <p className="text-[0.65rem] text-slate-300">
-                        {cell.amount ? currencyFormatter.format(cell.amount) : '—'}
-                      </p>
-                    </div>
-                  ) : (
-                    <div key={`empty-${idx}`} className="min-h-[4.5rem] rounded-xl border border-white/5" />
-                  )
-                )}
+                      <span className="text-sm font-semibold text-white">{cell.day}</span>
+                      <span
+                        className={`truncate text-xs font-semibold ${
+                          hasTransactions ? 'text-rose-50' : 'text-slate-500'
+                        }`}
+                      >
+                        {hasTransactions ? calendarAmountFormatter.format(cell.amount) : 'Sin gastos'}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-400">
                 <span>Total mensual: {currencyFormatter.format(calendarData.total)}</span>
@@ -1034,6 +1077,68 @@ export default function DashboardPage() {
                   </table>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedDayDetail && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/95 px-4 py-8 sm:px-8">
+          <div className="mx-auto w-full max-w-3xl rounded-2xl border border-white/10 bg-black/40 p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-slate-400">Gastos del día</p>
+                <h2 className="text-2xl font-semibold text-white">
+                  {selectedDayDetail.date.toLocaleDateString('es-AR', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                  })}
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Total {currencyFormatter.format(selectedDayDetail.total)} ·{' '}
+                  {selectedDayDetail.transactions.length} movimientos
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDayDetail(null)}
+                className="rounded-full border border-white/20 px-3 py-1 text-sm text-slate-200 hover:bg-white/10"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="mt-4 space-y-3">
+              {selectedDayDetail.transactions.map((tx) => {
+                const cat = tx.category_id ? categoryMap[tx.category_id] : null;
+                const account = accountMap[tx.account_id]?.name ?? 'Cuenta';
+                const amount = parseFloat(tx.amount_ars);
+                return (
+                  <div
+                    key={tx.id}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-200"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-white">{cat?.name ?? 'Sin categoría'}</p>
+                        <p className="text-xs text-slate-400">
+                          {account} · {new Date(tx.transaction_date).toLocaleTimeString('es-AR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold text-rose-200">
+                        -{currencyFormatter.format(amount)}
+                      </span>
+                    </div>
+                    {tx.notes && <p className="mt-1 text-xs text-slate-400">{tx.notes}</p>}
+                  </div>
+                );
+              })}
+              {!selectedDayDetail.transactions.length && (
+                <p className="text-sm text-slate-400">No hay movimientos registrados.</p>
+              )}
             </div>
           </div>
         </div>
