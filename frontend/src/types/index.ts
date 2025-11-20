@@ -17,6 +17,9 @@ export interface Category {
   id: number;
   name: string;
   type: 'income' | 'expense' | 'transfer';
+  parent_id?: number | null;
+  is_archived?: boolean;
+  is_default?: boolean;
   children?: Category[];
 }
 
