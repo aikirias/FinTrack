@@ -49,4 +49,6 @@ export const api = {
     apiRequest('/categories/', { method: 'POST', body: JSON.stringify(payload) }),
   createAccount: (payload: Record<string, unknown>) =>
     apiRequest('/accounts/', { method: 'POST', body: JSON.stringify(payload) }),
+  updateAccount: (id: number, payload: Record<string, unknown>) =>
+    apiRequest(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 };
