@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import accounts, auth, categories, exchange_rates, transactions, users
+from app.api.routes import accounts, auth, budgets, categories, exchange_rates, reports, transactions, users
 from app.db import base  # noqa: F401 - ensure models are registered
 from app.core.config import settings
 from app.worker.scheduler import shutdown_scheduler, start_scheduler
@@ -22,6 +22,8 @@ app.include_router(accounts.router)
 app.include_router(categories.router)
 app.include_router(transactions.router)
 app.include_router(exchange_rates.router)
+app.include_router(reports.router)
+app.include_router(budgets.router)
 
 
 @app.get("/health", tags=["health"])

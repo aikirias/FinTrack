@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.crud import crud_account, crud_category, crud_transaction
 from app.db.session import get_db
-from app.models.category import Category
+from app.models.category import Category, CategoryType
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.exchange_rate import ExchangeRateOverride
@@ -57,9 +57,14 @@ def list_transactions(
     end: datetime | None = Query(default=None),
     category_ids: List[int] | None = Query(default=None),
     account_ids: List[int] | None = Query(default=None),
+    currency_code: str | None = Query(default=None, min_length=3, max_length=3),
+    category_type: CategoryType | None = Query(default=None),
+    search: str | None = Query(default=None),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> List[TransactionOut]:
+    normalized_currency = currency_code.upper() if currency_code else None
+    normalized_search = search.strip() if search else None
     items = crud_transaction.list_transactions(
         db,
         user_id=current_user.id,
@@ -67,6 +72,9 @@ def list_transactions(
         end=end,
         category_ids=category_ids,
         account_ids=account_ids,
+        currency_code=normalized_currency,
+        category_type=category_type.value if category_type else None,
+        search=normalized_search,
         limit=limit,
         offset=offset,
     )
@@ -152,7 +160,7 @@ def update_transaction(
     ):
         exchange_rate_obj, rate_values = exchange_rates.pick_rates(
             db_session=db,
-            exchange_rate_id=tx_in.exchange_rate_id,
+            exchange_rate_id=tx_in.exchange_rate_id or transaction.exchange_rate_id,
             manual_rates=tx_in.manual_rates,
         )
 

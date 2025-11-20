@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -12,7 +12,14 @@ from app.core.config import settings
 from app.crud import crud_exchange_rate
 from app.db.session import SessionLocal
 from app.models.exchange_rate import ExchangeRate
-from app.schemas.exchange_rate import ExchangeRateCreate, ExchangeRateOverride, ExchangeRateValues
+from app.models.transaction import Transaction
+from app.schemas.exchange_rate import (
+    ExchangeRateCreate,
+    ExchangeRateOverride,
+    ExchangeRateReprocessRequest,
+    ExchangeRateValues,
+)
+from app.services.conversion import convert_amounts
 
 
 def _to_decimal(value: Any) -> Decimal:
@@ -83,6 +90,7 @@ def ensure_daily_exchange_rate(db_session: Session | None = None) -> ExchangeRat
             usd_ars_blue=values.usd_ars_blue,
             btc_usd=values.btc_usd,
             btc_ars=values.btc_ars,
+            is_manual=False,
             metadata_payload=json.dumps(metadata, default=str),
         )
         created = crud_exchange_rate.create_exchange_rate(db_session, rate_in)
@@ -119,3 +127,71 @@ def pick_rates(
         btc_usd=exchange_rate.btc_usd,
         btc_ars=exchange_rate.btc_ars,
     )
+
+
+def reprocess_user_transactions(
+    db_session: Session,
+    *,
+    user_id: int,
+    request: ExchangeRateReprocessRequest,
+) -> tuple[int, int, int]:
+    base_query = db_session.query(Transaction).filter(Transaction.user_id == user_id)
+    if request.start:
+        base_query = base_query.filter(Transaction.transaction_date >= request.start)
+    if request.end:
+        base_query = base_query.filter(Transaction.transaction_date <= request.end)
+
+    transactions = base_query.order_by(Transaction.transaction_date.asc()).all()
+    if not transactions:
+        return 0, 0, 0
+
+    target_rate: ExchangeRate | None = None
+    if request.exchange_rate_id:
+        target_rate = crud_exchange_rate.get_exchange_rate(db_session, request.exchange_rate_id)
+        if target_rate is None:
+            raise ValueError("Cotización no encontrada")
+
+    processed = len(transactions)
+    updated = 0
+    skipped = 0
+
+    for tx in transactions:
+        # Skip manual transactions without exchange rate linkage
+        if request.exchange_rate_id is None and tx.exchange_rate_id is None:
+            skipped += 1
+            continue
+
+        rate_obj = target_rate
+        if rate_obj is None:
+            if tx.exchange_rate_id:
+                rate_obj = crud_exchange_rate.get_exchange_rate(db_session, tx.exchange_rate_id)
+            else:
+                rate_obj = crud_exchange_rate.get_rate_by_date(db_session, tx.transaction_date.date())
+
+        if rate_obj is None:
+            skipped += 1
+            continue
+
+        rates = ExchangeRateValues(
+            usd_ars_oficial=rate_obj.usd_ars_oficial,
+            usd_ars_blue=rate_obj.usd_ars_blue,
+            btc_usd=rate_obj.btc_usd,
+            btc_ars=rate_obj.btc_ars,
+        )
+
+        amount_ars, amount_usd, amount_btc = convert_amounts(
+            tx.amount_original,
+            tx.currency_code,
+            rates,
+            tx.rate_type,
+        )
+
+        tx.amount_ars = amount_ars
+        tx.amount_usd = amount_usd
+        tx.amount_btc = amount_btc
+        tx.exchange_rate_id = rate_obj.id
+        db_session.add(tx)
+        updated += 1
+
+    db_session.commit()
+    return processed, updated, skipped

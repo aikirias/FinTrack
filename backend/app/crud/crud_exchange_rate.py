@@ -32,6 +32,7 @@ def create_exchange_rate(db: Session, rate_in: ExchangeRateCreate) -> ExchangeRa
         usd_ars_blue=rate_in.usd_ars_blue,
         btc_usd=rate_in.btc_usd,
         btc_ars=rate_in.btc_ars,
+        is_manual=rate_in.is_manual,
         metadata_payload=rate_in.metadata_payload,
     )
     db.add(exchange_rate)

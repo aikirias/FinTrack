@@ -8,15 +8,16 @@ const arsFormatter = new Intl.NumberFormat('es-AR', { style: 'currency', currenc
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const btcFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 });
 type SortField = 'date' | 'amount' | 'category' | 'type';
+const PAGE_SIZE = 50;
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPage, setLoadingPage] = useState(false);
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [visibleCount, setVisibleCount] = useState(50);
   const [filters, setFilters] = useState({
     accountId: '',
     currency: '',
@@ -25,25 +26,98 @@ export default function TransactionsPage() {
     startDate: '',
     endDate: '',
   });
+  const filtersHash = useMemo(() => JSON.stringify(filters), [filters]);
+  const [hasMore, setHasMore] = useState(true);
+  const [dataReady, setDataReady] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const filtersRef = useRef(filters);
+  const offsetRef = useRef(0);
+  const loadingPageRef = useRef(false);
 
   useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+
+  useEffect(() => {
+    let active = true;
     (async () => {
       setLoading(true);
       try {
-        const [txs, cats, accts] = await Promise.all([
-          api.getTransactions(),
-          api.getCategories(),
-          api.getAccounts(),
-        ]);
-        setTransactions(txs as Transaction[]);
+        const [cats, accts] = await Promise.all([api.getCategories(), api.getAccounts()]);
+        if (!active) return;
         setCategories(cats as Category[]);
         setAccounts(accts as Account[]);
+        setDataReady(true);
+      } catch (error) {
+        console.error(error);
+        if (!active) return;
+        setDataReady(true);
       } finally {
-        setLoading(false);
+        if (!active) return;
       }
     })();
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const fetchTransactions = useCallback(
+    async (replace = false) => {
+      if (loadingPageRef.current) return;
+      loadingPageRef.current = true;
+      setLoadingPage(true);
+      try {
+        const currentFilters = filtersRef.current;
+        const effectiveOffset = replace ? 0 : offsetRef.current;
+        const params = {
+          limit: PAGE_SIZE,
+          offset: effectiveOffset,
+          start: currentFilters.startDate ? `${currentFilters.startDate}T00:00:00Z` : undefined,
+          end: currentFilters.endDate ? `${currentFilters.endDate}T23:59:59Z` : undefined,
+          account_ids: currentFilters.accountId ? [Number(currentFilters.accountId)] : undefined,
+          currency_code: currentFilters.currency || undefined,
+          category_type: currentFilters.type || undefined,
+          search: currentFilters.search || undefined,
+        };
+        const txs = (await api.getTransactions(params)) as Transaction[];
+        offsetRef.current = effectiveOffset + txs.length;
+        setTransactions((prev) => (replace ? txs : [...prev, ...txs]));
+        setHasMore(txs.length === PAGE_SIZE);
+      } catch (error) {
+        console.error(error);
+        setHasMore(false);
+      } finally {
+        setLoading(false);
+        loadingPageRef.current = false;
+        setLoadingPage(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!dataReady) return;
+    offsetRef.current = 0;
+    setTransactions([]);
+    setHasMore(true);
+    setLoading(true);
+    fetchTransactions(true);
+  }, [dataReady, filtersHash, fetchTransactions]);
+
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const target = sentinelRef.current;
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry.isIntersecting && hasMore && !loadingPageRef.current) {
+        fetchTransactions();
+      }
+    });
+    observer.observe(target);
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, fetchTransactions]);
 
   const categoryMap = useMemo(() => {
     const map: Record<number, { name: string; type: string | undefined }> = {};
@@ -57,14 +131,14 @@ export default function TransactionsPage() {
     return map;
   }, [categories]);
 
-  const flattened = useMemo(() => {
-    const accountMap: Record<number, Account> = {};
+  const enhancedTransactions = useMemo(() => {
+    const accountLookup: Record<number, Account> = {};
     accounts.forEach((acc) => {
-      accountMap[acc.id] = acc;
+      accountLookup[acc.id] = acc;
     });
     return transactions.map((tx) => {
       const cat = tx.category_id ? categoryMap[tx.category_id] : undefined;
-      const account = accountMap[tx.account_id];
+      const account = accountLookup[tx.account_id];
       return {
         ...tx,
         category_name: cat?.name ?? 'Sin categoría',
@@ -75,33 +149,8 @@ export default function TransactionsPage() {
     });
   }, [transactions, categoryMap, accounts]);
 
-  const filteredTransactions = useMemo(() => {
-    return flattened.filter((tx) => {
-      if (filters.accountId && String(tx.account_id) !== filters.accountId) return false;
-      if (filters.currency && tx.currency_code !== filters.currency) return false;
-      if (filters.type && tx.category_type !== filters.type) return false;
-      if (filters.search) {
-        const term = filters.search.toLowerCase();
-        if (
-          !tx.category_name.toLowerCase().includes(term) &&
-          !(tx.notes ?? '').toLowerCase().includes(term) &&
-          !(tx.account_name ?? '').toLowerCase().includes(term)
-        ) {
-          return false;
-        }
-      }
-      if (filters.startDate && new Date(tx.transaction_date) < new Date(`${filters.startDate}T00:00:00`)) {
-        return false;
-      }
-      if (filters.endDate && new Date(tx.transaction_date) > new Date(`${filters.endDate}T23:59:59`)) {
-        return false;
-      }
-      return true;
-    });
-  }, [flattened, filters]);
-
   const sortedTransactions = useMemo(() => {
-    const data = [...filteredTransactions];
+    const data = [...enhancedTransactions];
     data.sort((a, b) => {
       let result = 0;
       if (sortField === 'date') {
@@ -116,28 +165,7 @@ export default function TransactionsPage() {
       return sortDirection === 'asc' ? result : -result;
     });
     return data;
-  }, [filteredTransactions, sortField, sortDirection]);
-
-  const visibleTransactions = sortedTransactions.slice(0, visibleCount);
-
-  useEffect(() => {
-    setVisibleCount(50);
-  }, [filters, sortField, sortDirection]);
-
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    const observer = new IntersectionObserver((entries) => {
-      const entry = entries[0];
-      if (entry.isIntersecting && visibleCount < sortedTransactions.length) {
-        setVisibleCount((prev) => prev + 50);
-      }
-    });
-    const current = sentinelRef.current;
-    observer.observe(current);
-    return () => {
-      observer.disconnect();
-    };
-  }, [visibleCount, sortedTransactions.length]);
+  }, [enhancedTransactions, sortField, sortDirection]);
 
   const handleSort = (field: SortField) => {
     if (field === sortField) {
@@ -156,7 +184,7 @@ export default function TransactionsPage() {
   };
 
   const summary = useMemo(() => {
-    return filteredTransactions.reduce(
+    return enhancedTransactions.reduce(
       (acc, tx) => {
         const catType = tx.category_type;
         const amountArs = parseFloat(tx.amount_ars);
@@ -166,7 +194,7 @@ export default function TransactionsPage() {
       },
       { income: 0, expense: 0 }
     );
-  }, [filteredTransactions]);
+  }, [enhancedTransactions]);
 
   if (loading) {
     return <div className="text-slate-300">Cargando movimientos...</div>;
@@ -179,7 +207,8 @@ export default function TransactionsPage() {
           <div>
             <h1 className="text-2xl font-semibold">Movimientos</h1>
             <p className="text-sm text-slate-400">
-              Mostrando {visibleTransactions.length} de {sortedTransactions.length}
+              Mostrando {sortedTransactions.length} movimientos
+              {hasMore ? ' (hay más disponibles)' : ''}
             </p>
           </div>
           <button
@@ -285,7 +314,7 @@ export default function TransactionsPage() {
             </tr>
           </thead>
           <tbody>
-            {visibleTransactions.map((tx) => (
+            {sortedTransactions.map((tx) => (
               <tr key={tx.id} className="border-t border-white/5">
                 <td className="px-4 py-3 text-slate-300">
                   {new Date(tx.transaction_date).toLocaleString('es-AR')}
@@ -300,6 +329,9 @@ export default function TransactionsPage() {
           </tbody>
         </table>
       </div>
+      {loadingPage && (
+        <div className="py-3 text-center text-slate-400">Cargando más movimientos...</div>
+      )}
       <div ref={sentinelRef} className="h-6" />
     </div>
   );

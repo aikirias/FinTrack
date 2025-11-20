@@ -1,9 +1,11 @@
 from datetime import datetime
 from typing import Iterable
 
-from sqlalchemy import and_, desc
-from sqlalchemy.orm import Session
+from sqlalchemy import desc, or_
+from sqlalchemy.orm import Session, aliased
 
+from app.models.account import Account
+from app.models.category import Category
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionCreate, TransactionUpdate
 from app.services.conversion import convert_amounts
@@ -17,10 +19,20 @@ def list_transactions(
     end: datetime | None = None,
     category_ids: Iterable[int] | None = None,
     account_ids: Iterable[int] | None = None,
+    currency_code: str | None = None,
+    category_type: str | None = None,
+    search: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[Transaction]:
     query = db.query(Transaction).filter(Transaction.user_id == user_id)
+
+    account_alias = aliased(Account)
+    category_alias = aliased(Category)
+
+    query = query.outerjoin(account_alias, Transaction.account_id == account_alias.id)
+    query = query.outerjoin(category_alias, Transaction.category_id == category_alias.id)
+
     if start is not None:
         query = query.filter(Transaction.transaction_date >= start)
     if end is not None:
@@ -29,6 +41,19 @@ def list_transactions(
         query = query.filter(Transaction.category_id.in_(category_ids))
     if account_ids:
         query = query.filter(Transaction.account_id.in_(account_ids))
+    if currency_code:
+        query = query.filter(Transaction.currency_code == currency_code)
+    if category_type:
+        query = query.filter(category_alias.type == category_type)
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Transaction.notes.ilike(pattern),
+                category_alias.name.ilike(pattern),
+                account_alias.name.ilike(pattern),
+            )
+        )
 
     return (
         query.order_by(desc(Transaction.transaction_date))

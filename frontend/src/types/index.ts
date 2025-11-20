@@ -46,3 +46,70 @@ export interface ExchangeRate {
   btc_ars: string;
   effective_date: string;
 }
+
+export interface ReportTotals {
+  income: string;
+  expense: string;
+  transfers: string;
+  balance: string;
+}
+
+export interface ReportSummaryResponse {
+  currency: 'ARS' | 'USD' | 'BTC';
+  range: {
+    start: string | null;
+    end: string | null;
+  };
+  totals: ReportTotals;
+  previous_totals: ReportTotals | null;
+  budget_totals: ReportBudgetTotals | null;
+}
+
+export interface ReportTimeseriesPoint {
+  period: string;
+  income: string;
+  expense: string;
+}
+
+export interface ReportTimeseriesResponse {
+  currency: 'ARS' | 'USD' | 'BTC';
+  interval: 'month' | 'day';
+  points: ReportTimeseriesPoint[];
+}
+
+export interface ReportCategoryEntry {
+  category_id: number | null;
+  name: string;
+  total: string;
+  type: 'income' | 'expense' | 'transfer';
+}
+
+export interface ReportCategoryResponse {
+  currency: 'ARS' | 'USD' | 'BTC';
+  entries: ReportCategoryEntry[];
+}
+
+export interface ReportBudgetTotals {
+  income: string;
+  expense: string;
+}
+
+export interface BudgetItem {
+  id: number;
+  category_id: number;
+  amount: string;
+}
+
+export interface Budget {
+  id: number;
+  month: string;
+  currency_code: string;
+  name?: string | null;
+  items: BudgetItem[];
+}
+
+export interface ExchangeRateReprocessResult {
+  processed: number;
+  updated: number;
+  skipped: number;
+}

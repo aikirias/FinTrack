@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -32,6 +32,7 @@ class ExchangeRate(Base):
     usd_ars_blue: Mapped[Decimal | None] = mapped_column(Numeric(20, 6), nullable=True)
     btc_usd: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
     btc_ars: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    is_manual: Mapped[bool] = mapped_column(Boolean, default=False)
     metadata_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
