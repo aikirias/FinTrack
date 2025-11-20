@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import type { Account, Category, ExchangeRate, Transaction } from '@/types';
 import {
@@ -25,6 +25,9 @@ const calendarAmountFormatter = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 0,
 });
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const usdShortFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const btcFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 });
+const btcShortFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 const timeOptions = [
   { label: 'Mes actual', value: 'current', months: null },
   { label: '1M', value: '1m', months: 1 },
@@ -37,6 +40,11 @@ const timeOptions = [
 const colorPalette = ['#fb7185', '#f97316', '#facc15', '#34d399', '#38bdf8', '#a78bfa', '#f472b6', '#f59e0b'];
 const weekDays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const heatLevels = ['bg-white/5 border-white/10', 'bg-rose-950/30 border-rose-900/40', 'bg-rose-900/40 border-rose-700/50', 'bg-rose-700/50 border-rose-500/60', 'bg-rose-500/70 border-rose-400/80'];
+const currencyOptions: Array<{ label: string; value: 'ARS' | 'USD' | 'BTC' }> = [
+  { label: 'ARS', value: 'ARS' },
+  { label: 'USD', value: 'USD' },
+  { label: 'BTC', value: 'BTC' },
+];
 const emojiMap: Record<string, string> = {
   Servicios: '💡',
   Comida: '🍽️',
@@ -58,7 +66,9 @@ export default function DashboardPage() {
   const [rates, setRates] = useState<ExchangeRate | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<(typeof timeOptions)[number]['value']>('3m');
+  const [baseCurrency, setBaseCurrency] = useState<'ARS' | 'USD' | 'BTC'>('ARS');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedIncomeCategoryId, setSelectedIncomeCategoryId] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDayDetail, setSelectedDayDetail] = useState<{
     date: Date;
@@ -69,9 +79,36 @@ export default function DashboardPage() {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   });
+  const getAmount = useCallback(
+    (tx: Transaction) => {
+      if (baseCurrency === 'USD') return parseFloat(tx.amount_usd);
+      if (baseCurrency === 'BTC') return parseFloat(tx.amount_btc);
+      return parseFloat(tx.amount_ars);
+    },
+    [baseCurrency]
+  );
+  const formatAmount = useCallback(
+    (value: number) => {
+      if (baseCurrency === 'USD') return usdFormatter.format(value);
+      if (baseCurrency === 'BTC') return `${btcFormatter.format(value)} BTC`;
+      return currencyFormatter.format(value);
+    },
+    [baseCurrency]
+  );
+  const formatShortAmount = useCallback(
+    (value: number) => {
+      if (baseCurrency === 'USD') return usdShortFormatter.format(value);
+      if (baseCurrency === 'BTC') return `${btcShortFormatter.format(value)} BTC`;
+      return calendarAmountFormatter.format(value);
+    },
+    [baseCurrency]
+  );
   const handleCategorySelect = (categoryId: number) => {
     setSelectedCategoryId((prev) => (prev === categoryId ? null : categoryId));
     setDetailOpen(false);
+  };
+  const handleIncomeCategorySelect = (categoryId: number) => {
+    setSelectedIncomeCategoryId((prev) => (prev === categoryId ? null : categoryId));
   };
   const openCategoryDetail = () => {
     if (selectedCategoryId) setDetailOpen(true);
@@ -165,7 +202,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setSelectedDayDetail(null);
-  }, [calendarMonth]);
+  }, [calendarMonth, baseCurrency]);
 
   useEffect(() => {
     if (detailOpen || selectedDayDetail) {
@@ -216,26 +253,29 @@ export default function DashboardPage() {
     return transactions.filter((tx) => new Date(tx.transaction_date) >= timeRangeStart);
   }, [transactions, timeRangeStart]);
 
-  const aggregateStats = (list: Transaction[]) => {
-    return list.reduce(
-      (acc, tx) => {
-        const cat = tx.category_id ? categoryMap[tx.category_id] : null;
-        const amount = parseFloat(tx.amount_ars);
-        if (cat?.type === 'income') {
-          acc.income += amount;
-        } else {
-          acc.expense += amount;
-        }
-        return acc;
-      },
-      { income: 0, expense: 0 }
-    );
-  };
+  const aggregateStats = useCallback(
+    (list: Transaction[]) => {
+      return list.reduce(
+        (acc, tx) => {
+          const cat = tx.category_id ? categoryMap[tx.category_id] : null;
+          const amount = getAmount(tx);
+          if (cat?.type === 'income') {
+            acc.income += amount;
+          } else {
+            acc.expense += amount;
+          }
+          return acc;
+        },
+        { income: 0, expense: 0 }
+      );
+    },
+    [categoryMap, getAmount]
+  );
 
   const stats = useMemo(() => {
     const totals = aggregateStats(filteredTransactions);
     return { ...totals, balance: totals.income - totals.expense };
-  }, [filteredTransactions, categoryMap]);
+  }, [filteredTransactions, aggregateStats]);
 
   const previousStats = useMemo(() => {
     if (!timeRangeStart) return null;
@@ -250,7 +290,7 @@ export default function DashboardPage() {
     });
     const totals = aggregateStats(rangeTransactions);
     return { ...totals, balance: totals.income - totals.expense };
-  }, [timeRangeStart, transactions, categoryMap]);
+  }, [timeRangeStart, transactions, aggregateStats]);
 
   const statsTrend = useMemo(() => {
     if (!previousStats) return null;
@@ -272,7 +312,7 @@ export default function DashboardPage() {
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       grouped[key] = grouped[key] || { income: 0, expense: 0 };
       const cat = tx.category_id ? categoryMap[tx.category_id] : null;
-      const amount = parseFloat(tx.amount_ars);
+      const amount = getAmount(tx);
       if (cat?.type === 'income') {
         grouped[key].income += amount;
       } else {
@@ -297,7 +337,7 @@ export default function DashboardPage() {
         },
       ],
     };
-  }, [filteredTransactions, categoryMap]);
+  }, [filteredTransactions, categoryMap, getAmount]);
 
   const expenseSummary = useMemo(() => {
     const totals: Record<number, { id: number; label: string; value: number }> = {};
@@ -307,7 +347,7 @@ export default function DashboardPage() {
       if (!totals[cat.id]) {
         totals[cat.id] = { id: cat.id, label: cat.name, value: 0 };
       }
-      totals[cat.id].value += parseFloat(tx.amount_ars);
+      totals[cat.id].value += getAmount(tx);
     });
     const entries = Object.values(totals).sort((a, b) => b.value - a.value);
     const total = entries.reduce((sum, entry) => sum + entry.value, 0);
@@ -329,7 +369,7 @@ export default function DashboardPage() {
         ],
       },
     };
-  }, [filteredTransactions, categoryMap]);
+  }, [filteredTransactions, categoryMap, getAmount]);
 
   useEffect(() => {
     if (selectedCategoryId && !expenseSummary.entries.some((entry) => entry.id === selectedCategoryId)) {
@@ -338,29 +378,42 @@ export default function DashboardPage() {
   }, [expenseSummary.entries, selectedCategoryId]);
 
   const incomeInsights = useMemo(() => {
-    const totals: Record<string, number> = {};
+    const totals: Record<string, { id: number; label: string; value: number }> = {};
     filteredTransactions.forEach((tx) => {
       const cat = tx.category_id ? categoryMap[tx.category_id] : null;
       if (cat?.type !== 'income') return;
-      totals[cat.name] = (totals[cat.name] || 0) + parseFloat(tx.amount_ars);
+      if (!totals[cat.id]) {
+        totals[cat.id] = { id: cat.id, label: cat.name, value: 0 };
+      }
+      totals[cat.id].value += getAmount(tx);
     });
-    const labels = Object.keys(totals);
+    const entries = Object.values(totals).sort((a, b) => b.value - a.value);
+    const total = entries.reduce((sum, entry) => sum + entry.value, 0);
+    const colors = entries.map((_, idx) => colorPalette[idx % colorPalette.length]);
     return {
+      total,
+      entries,
+      colors,
       chart: {
-        labels,
+        labels: entries.map((entry) => entry.label),
         datasets: [
           {
             label: 'Ingresos',
-            data: labels.map((label) => totals[label]),
-            backgroundColor: '#22d3ee',
+            data: entries.map((entry) => entry.value),
+            backgroundColor: colors,
+            borderColor: '#0f172a',
+            hoverOffset: 8,
           },
         ],
       },
-      entries: labels
-        .map((label) => [label, totals[label]] as [string, number])
-        .sort((a, b) => b[1] - a[1]),
     };
-  }, [filteredTransactions, categoryMap]);
+  }, [filteredTransactions, categoryMap, getAmount]);
+
+  useEffect(() => {
+    if (selectedIncomeCategoryId && !incomeInsights.entries.some((entry) => entry.id === selectedIncomeCategoryId)) {
+      setSelectedIncomeCategoryId(null);
+    }
+  }, [incomeInsights.entries, selectedIncomeCategoryId]);
 
   const selectedCategoryData = useMemo(() => {
     if (!selectedCategoryId) return null;
@@ -368,14 +421,14 @@ export default function DashboardPage() {
     if (!category) return null;
     const catTransactions = filteredTransactions.filter((tx) => tx.category_id === selectedCategoryId);
     if (!catTransactions.length) return null;
-    const total = catTransactions.reduce((sum, tx) => sum + parseFloat(tx.amount_ars), 0);
+    const total = catTransactions.reduce((sum, tx) => sum + getAmount(tx), 0);
     const share = expenseSummary.total ? total / expenseSummary.total : 0;
     const timelineTotals: Record<string, number> = {};
     const subTotals: Record<string, { label: string; value: number }> = {};
     const accountTotals: Record<string, { label: string; value: number }> = {};
 
     catTransactions.forEach((tx) => {
-      const amount = parseFloat(tx.amount_ars);
+      const amount = getAmount(tx);
       const subId = tx.subcategory_id;
       const key = subId ? String(subId) : 'none';
       const label = subId ? categoryMap[subId]?.name ?? 'Sin subcategoría' : 'Sin subcategoría';
@@ -426,7 +479,7 @@ export default function DashboardPage() {
           const txDate = new Date(tx.transaction_date);
           return txDate >= previousStart && txDate < previousEnd;
         })
-        .reduce((sum, tx) => sum + parseFloat(tx.amount_ars), 0);
+        .reduce((sum, tx) => sum + getAmount(tx), 0);
       if (previousTotal === 0) {
         trend = null;
       } else {
@@ -439,7 +492,7 @@ export default function DashboardPage() {
     );
     const largest = sortedTransactions.reduce(
       (acc, tx) => {
-        const value = parseFloat(tx.amount_ars);
+        const value = getAmount(tx);
         if (value > acc.amount) {
           return { amount: value, tx };
         }
@@ -462,6 +515,7 @@ export default function DashboardPage() {
       previousTotal,
       trend,
       largestTransaction: largest.tx,
+      largestAmount: largest.amount,
     };
   }, [
     selectedCategoryId,
@@ -471,7 +525,77 @@ export default function DashboardPage() {
     timeRangeStart,
     transactions,
     accountMap,
+    getAmount,
   ]);
+
+  const selectedIncomeData = useMemo(() => {
+    if (!selectedIncomeCategoryId) return null;
+    const category = categoryMap[selectedIncomeCategoryId];
+    if (!category) return null;
+    const catTransactions = filteredTransactions.filter((tx) => tx.category_id === selectedIncomeCategoryId);
+    if (!catTransactions.length) return null;
+    const total = catTransactions.reduce((sum, tx) => sum + getAmount(tx), 0);
+    const share = incomeInsights.total ? total / incomeInsights.total : 0;
+    const timelineTotals: Record<string, number> = {};
+    const accountTotals: Record<string, { label: string; value: number }> = {};
+
+    catTransactions.forEach((tx) => {
+      const amount = getAmount(tx);
+      const accountKey = String(tx.account_id);
+      const accountLabel = accountMap[tx.account_id]?.name ?? 'Cuenta';
+      if (!accountTotals[accountKey]) {
+        accountTotals[accountKey] = { label: accountLabel, value: 0 };
+      }
+      accountTotals[accountKey].value += amount;
+      const dayKey = new Date(tx.transaction_date).toISOString().slice(0, 10);
+      timelineTotals[dayKey] = (timelineTotals[dayKey] || 0) + amount;
+    });
+
+    const accountEntries = Object.values(accountTotals).sort((a, b) => b.value - a.value);
+    const timelineLabels = Object.keys(timelineTotals).sort();
+    const timelineChart = {
+      labels: timelineLabels.map((label) =>
+        new Date(label).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+      ),
+      datasets: [
+        {
+          label: category.name,
+          data: timelineLabels.map((label) => timelineTotals[label]),
+          borderColor: '#22d3ee',
+          backgroundColor: 'rgba(34, 211, 238, 0.25)',
+          fill: true,
+          tension: 0.4,
+        },
+      ],
+    };
+
+    const sortedTransactions = [...catTransactions].sort(
+      (a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+    );
+    const largest = sortedTransactions.reduce(
+      (acc, tx) => {
+        const value = getAmount(tx);
+        if (value > acc.amount) {
+          return { amount: value, tx };
+        }
+        return acc;
+      },
+      { amount: 0, tx: sortedTransactions[0] }
+    );
+
+    return {
+      category,
+      total,
+      share,
+      count: catTransactions.length,
+      avgTicket: total / catTransactions.length,
+      accountEntries,
+      timelineChart,
+      recentTransactions: sortedTransactions.slice(0, 4),
+      largestTransaction: largest.tx,
+      largestAmount: largest.amount,
+    };
+  }, [selectedIncomeCategoryId, filteredTransactions, categoryMap, incomeInsights.total, accountMap, getAmount]);
 
   const calendarData = useMemo(() => {
     const [yearStr, monthStr] = calendarMonth.split('-');
@@ -522,7 +646,7 @@ export default function DashboardPage() {
       label: monthStart.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }),
       monthStart,
     };
-  }, [calendarMonth, transactions, categoryMap]);
+  }, [calendarMonth, transactions, categoryMap, getAmount]);
 
   const handleCalendarDayClick = (cell: { day: number; amount: number; transactions: Transaction[] }) => {
     if (!calendarData) return;
@@ -562,29 +686,44 @@ export default function DashboardPage() {
             Exportar CSV
           </button>
         </div>
-        <div className="flex gap-2 rounded-full border border-white/10 bg-white/5 p-1">
-          {timeOptions.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setTimeRange(opt.value)}
-              className={`rounded-full px-4 py-1 text-sm font-semibold ${
-                timeRange === opt.value ? 'bg-white text-primary' : 'text-slate-300'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-2 rounded-full border border-white/10 bg-white/5 p-1">
+            {timeOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setTimeRange(opt.value)}
+                className={`rounded-full px-4 py-1 text-sm font-semibold ${
+                  timeRange === opt.value ? 'bg-white text-primary' : 'text-slate-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 rounded-full border border-white/10 bg-white/5 p-1">
+            {currencyOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setBaseCurrency(opt.value)}
+                className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                  baseCurrency === opt.value ? 'bg-white text-primary' : 'text-slate-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
           <p className="text-sm text-slate-300">Balance</p>
-          <p className="text-3xl font-semibold text-white">{currencyFormatter.format(stats.balance)}</p>
+          <p className="text-3xl font-semibold text-white">{formatAmount(stats.balance)}</p>
           {renderTrendLabel(statsTrend?.balance)}
         </div>
         <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
           <p className="text-sm text-slate-300">Ingresos</p>
-          <p className="text-3xl font-semibold text-emerald-300">{currencyFormatter.format(stats.income)}</p>
+          <p className="text-3xl font-semibold text-emerald-300">{formatAmount(stats.income)}</p>
           {renderTrendLabel(statsTrend?.income)}
           <div className="mt-2 h-1 rounded-full bg-emerald-500/40">
             <div style={{ width: stats.expense + stats.income ? `${Math.min(100, (stats.income / (stats.income + stats.expense)) * 100)}%` : '0%' }} className="h-full rounded-full bg-emerald-400" />
@@ -592,7 +731,7 @@ export default function DashboardPage() {
         </div>
         <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
           <p className="text-sm text-slate-300">Gastos</p>
-          <p className="text-3xl font-semibold text-rose-300">{currencyFormatter.format(stats.expense)}</p>
+          <p className="text-3xl font-semibold text-rose-300">{formatAmount(stats.expense)}</p>
           {renderTrendLabel(statsTrend?.expense)}
           <div className="mt-2 h-1 rounded-full bg-rose-500/30">
             <div style={{ width: stats.expense + stats.income ? `${Math.min(100, (stats.expense / (stats.income + stats.expense)) * 100)}%` : '0%' }} className="h-full rounded-full bg-rose-400" />
@@ -618,7 +757,7 @@ export default function DashboardPage() {
         <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold">Distribución de gastos</h3>
-            <span className="text-sm text-slate-300">Total {currencyFormatter.format(expenseSummary.total)}</span>
+            <span className="text-sm text-slate-300">Total {formatAmount(expenseSummary.total)}</span>
           </div>
           {expenseSummary.entries.length ? (
             <div className="flex flex-col gap-4">
@@ -631,7 +770,7 @@ export default function DashboardPage() {
                       legend: { display: false },
                       tooltip: {
                         callbacks: {
-                          label: (ctx) => `${ctx.label}: ${currencyFormatter.format(Number(ctx.formattedValue))}`,
+                          label: (ctx) => `${ctx.label}: ${formatAmount(Number(ctx.formattedValue))}`,
                         },
                       },
                     },
@@ -664,7 +803,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <span className="font-semibold" style={{ color }}>
-                          {currencyFormatter.format(value)}
+                          {formatAmount(value)}
                         </span>
                       </button>
                     </li>
@@ -709,10 +848,10 @@ export default function DashboardPage() {
           {selectedCategoryData ? (
             <div className="mt-4 space-y-4">
               <div>
-                <p className="text-3xl font-semibold text-rose-200">{currencyFormatter.format(selectedCategoryData.total)}</p>
+                <p className="text-3xl font-semibold text-rose-200">{formatAmount(selectedCategoryData.total)}</p>
                 <p className="text-xs text-slate-400">
-                  {(selectedCategoryData.share * 100).toFixed(1)}% del gasto del período · {selectedCategoryData.count} movimientos ·
-                  Ticket promedio {currencyFormatter.format(selectedCategoryData.avgTicket)}
+                    {(selectedCategoryData.share * 100).toFixed(1)}% del gasto del período · {selectedCategoryData.count} movimientos ·
+                    Ticket promedio {formatAmount(selectedCategoryData.avgTicket)}
                 </p>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
@@ -726,7 +865,7 @@ export default function DashboardPage() {
                           <li key={entry.label} className="rounded-xl border border-white/5 bg-black/20 p-3">
                             <div className="flex items-center justify-between">
                               <span>{entry.label}</span>
-                              <span className="font-semibold">{currencyFormatter.format(entry.value)}</span>
+                                <span className="font-semibold">{formatAmount(entry.value)}</span>
                             </div>
                             <div className="mt-2 h-1.5 rounded-full bg-white/5">
                               <div className="h-full rounded-full bg-rose-400" style={{ width: `${Math.min(100, share)}%` }} />
@@ -767,7 +906,7 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center justify-between">
                         <span>{new Date(tx.transaction_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
-                        <span className="font-semibold text-rose-200">-{currencyFormatter.format(parseFloat(tx.amount_ars))}</span>
+                        <span className="font-semibold text-rose-200">-{formatAmount(getAmount(tx))}</span>
                       </div>
                       <p className="text-xs text-slate-400">
                         {accountMap[tx.account_id]?.name ?? 'Cuenta'}
@@ -787,108 +926,122 @@ export default function DashboardPage() {
       </div>
 
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold">Calendario de gastos</h3>
-              <p className="text-sm text-slate-400">{calendarData?.label ?? 'Seleccioná un mes'}</p>
-            </div>
-            <input
-              type="month"
-              value={calendarMonth}
-              onChange={(e) => setCalendarMonth(e.target.value)}
-              className="rounded-xl border border-white/10 bg-black/20 px-3 py-1 text-sm text-white"
-            />
+      <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold">Calendario de gastos</h3>
+            <p className="text-sm text-slate-400">{calendarData?.label ?? 'Seleccioná un mes'}</p>
           </div>
-          {calendarData ? (
-            <>
-              <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-slate-400">
-                {weekDays.map((day) => (
-                  <span key={day}>{day}</span>
+          <input
+            type="month"
+            value={calendarMonth}
+            onChange={(e) => setCalendarMonth(e.target.value)}
+            className="rounded-xl border border-white/10 bg-black/20 px-3 py-1 text-sm text-white"
+          />
+        </div>
+        {calendarData ? (
+          <>
+            <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-slate-400">
+              {weekDays.map((day) => (
+                <span key={day}>{day}</span>
+              ))}
+            </div>
+            <div className="mt-2 grid grid-cols-7 gap-2">
+              {calendarData.cells.map((cell, idx) => {
+                if (!cell) {
+                  return <div key={`empty-${idx}`} className="min-h-[4.5rem] rounded-xl border border-white/5" />;
+                }
+                const hasTransactions = cell.transactions.length > 0;
+                return (
+                  <button
+                    key={`${calendarMonth}-${cell.day}-${idx}`}
+                    type="button"
+                    onClick={() => hasTransactions && handleCalendarDayClick(cell)}
+                    disabled={!hasTransactions}
+                    className={`flex min-h-[4.5rem] flex-col justify-between rounded-2xl border p-2 text-left transition ${
+                      heatLevels[cell.level]
+                    } ${hasTransactions ? 'hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-rose-400' : 'opacity-60'}`}
+                  >
+                    <span className="text-sm font-semibold text-white">{cell.day}</span>
+                    <span
+                      className={`truncate text-xs font-semibold ${
+                        hasTransactions ? 'text-rose-50' : 'text-slate-500'
+                      }`}
+                    >
+                      {hasTransactions ? formatShortAmount(cell.amount) : 'Sin gastos'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-400">
+              <span>Total mensual: {formatAmount(calendarData.total)}</span>
+              <span>Promedio diario: {formatAmount(calendarData.avg)}</span>
+              <div className="flex items-center gap-1">
+                <span>Nivel:</span>
+                {heatLevels.map((cls, index) => (
+                  <span key={cls} className={`h-4 w-4 rounded-full border ${cls}`} aria-label={`Nivel ${index}`} />
                 ))}
               </div>
-              <div className="mt-2 grid grid-cols-7 gap-2">
-                {calendarData.cells.map((cell, idx) => {
-                  if (!cell) {
-                    return <div key={`empty-${idx}`} className="min-h-[4.5rem] rounded-xl border border-white/5" />;
-                  }
-                  const hasTransactions = cell.transactions.length > 0;
-                  return (
-                    <button
-                      key={`${calendarMonth}-${cell.day}-${idx}`}
-                      type="button"
-                      onClick={() => hasTransactions && handleCalendarDayClick(cell)}
-                      disabled={!hasTransactions}
-                      className={`flex min-h-[4.5rem] flex-col justify-between rounded-2xl border p-2 text-left transition ${
-                        heatLevels[cell.level]
-                      } ${hasTransactions ? 'hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-rose-400' : 'opacity-60'}`}
-                    >
-                      <span className="text-sm font-semibold text-white">{cell.day}</span>
-                      <span
-                        className={`truncate text-xs font-semibold ${
-                          hasTransactions ? 'text-rose-50' : 'text-slate-500'
-                        }`}
-                      >
-                        {hasTransactions ? calendarAmountFormatter.format(cell.amount) : 'Sin gastos'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-400">
-                <span>Total mensual: {currencyFormatter.format(calendarData.total)}</span>
-                <span>Promedio diario: {currencyFormatter.format(calendarData.avg)}</span>
-                <div className="flex items-center gap-1">
-                  <span>Nivel:</span>
-                  {heatLevels.map((cls, index) => (
-                    <span key={cls} className={`h-4 w-4 rounded-full border ${cls}`} aria-label={`Nivel ${index}`} />
-                  ))}
-                </div>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-slate-400">No pudimos construir el calendario para el mes seleccionado.</p>
-          )}
-        </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-slate-400">No pudimos construir el calendario para el mes seleccionado.</p>
+        )}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
           <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-widest text-slate-400">Ingresos del período</p>
-              <h3 className="text-lg font-semibold text-white">{currencyFormatter.format(stats.income)}</h3>
-              <p className="text-xs text-slate-400">Principales fuentes</p>
-            </div>
+            <h3 className="text-lg font-semibold">Distribución de ingresos</h3>
+            <span className="text-sm text-slate-300">Total {formatAmount(incomeInsights.total)}</span>
           </div>
           {incomeInsights.entries.length ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Doughnut
-                data={{
-                  labels: incomeInsights.entries.map(([label]) => label),
-                  datasets: [
-                    {
-                      label: 'Ingresos',
-                      data: incomeInsights.entries.map(([, value]) => value),
-                      backgroundColor: colorPalette,
+            <div className="flex flex-col gap-4">
+              <div className="mx-auto w-60">
+                <Doughnut
+                  data={incomeInsights.chart}
+                  options={{
+                    cutout: '60%',
+                    plugins: {
+                      legend: { display: false },
+                      tooltip: {
+                        callbacks: {
+                          label: (ctx) => `${ctx.label}: ${formatAmount(Number(ctx.formattedValue))}`,
+                        },
+                      },
                     },
-                  ],
-                }}
-                options={{
-                  plugins: { legend: { display: false } },
-                  cutout: '55%',
-                }}
-              />
-              <ul className="space-y-2 text-sm text-slate-200">
-                {incomeInsights.entries.slice(0, 6).map(([label, value]) => {
-                  const share = stats.income ? (value / stats.income) * 100 : 0;
+                  }}
+                />
+              </div>
+              <ul className="flex-1 space-y-2">
+                {incomeInsights.entries.map((entry, index) => {
+                  const { id, label, value } = entry;
+                  const pct = incomeInsights.total ? (value / incomeInsights.total) * 100 : 0;
+                  const color = incomeInsights.colors[index % incomeInsights.colors.length];
+                  const selected = selectedIncomeCategoryId === id;
                   return (
-                    <li key={label} className="rounded-xl border border-white/5 bg-black/15 px-3 py-2">
-                      <div className="flex items-center justify-between">
-                        <span>{label}</span>
-                        <span className="font-semibold text-emerald-200">{currencyFormatter.format(value)}</span>
-                      </div>
-                      <div className="mt-1 h-1.5 rounded-full bg-emerald-500/20">
-                        <div className="h-full rounded-full bg-emerald-300" style={{ width: `${Math.min(100, share)}%` }} />
-                      </div>
+                    <li key={`${id}-${label}`}>
+                      <button
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => handleIncomeCategorySelect(id)}
+                        className={`flex w-full items-center justify-between rounded-xl border bg-black/20 px-3 py-2 text-left transition ${
+                          selected ? 'border-white/40 bg-white/10 shadow-lg shadow-emerald-500/10' : 'border-white/5'
+                        }`}
+                        style={{ borderColor: selected ? color : undefined }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl" style={{ textShadow: '0 0 6px rgba(0,0,0,0.3)' }}>💰</span>
+                          <div>
+                            <p className="font-semibold text-white">{label}</p>
+                            <p className="text-xs text-slate-400">{pct.toFixed(1)}%</p>
+                          </div>
+                        </div>
+                        <span className="font-semibold" style={{ color }}>
+                          {formatAmount(value)}
+                        </span>
+                      </button>
                     </li>
                   );
                 })}
@@ -896,6 +1049,93 @@ export default function DashboardPage() {
             </div>
           ) : (
             <p className="text-sm text-slate-400">Todavía no registraste ingresos en este período.</p>
+          )}
+        </div>
+        <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-slate-400">Detalle por categoría (ingresos)</p>
+              <h3 className="text-lg font-semibold">
+                {selectedIncomeData ? selectedIncomeData.category.name : 'Elegí una categoría'}
+              </h3>
+            </div>
+          </div>
+          {selectedIncomeData ? (
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-3xl font-semibold text-emerald-200">{formatAmount(selectedIncomeData.total)}</p>
+                <p className="text-xs text-slate-400">
+                  {(selectedIncomeData.share * 100).toFixed(1)}% del ingreso del período · {selectedIncomeData.count} movimientos ·
+                  Ticket promedio {formatAmount(selectedIncomeData.avgTicket)}
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-sm text-slate-300">Cuentas</p>
+                  {selectedIncomeData.accountEntries.length ? (
+                    <ul className="mt-2 space-y-2 text-sm text-slate-200">
+                      {selectedIncomeData.accountEntries.map((entry) => {
+                        const share = selectedIncomeData.total ? (entry.value / selectedIncomeData.total) * 100 : 0;
+                        return (
+                          <li key={entry.label} className="rounded-xl border border-white/5 bg-black/20 p-3">
+                            <div className="flex items-center justify-between">
+                              <span>{entry.label}</span>
+                              <span className="font-semibold">{formatAmount(entry.value)}</span>
+                            </div>
+                            <div className="mt-2 h-1.5 rounded-full bg-white/5">
+                              <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, share)}%` }} />
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-400">No hay cuentas con movimientos.</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm text-slate-300">Ritmo de ingreso</p>
+                  {selectedIncomeData.timelineChart.labels.length > 0 ? (
+                    <Line
+                      data={selectedIncomeData.timelineChart}
+                      options={{
+                        plugins: { legend: { display: false } },
+                        scales: {
+                          x: { ticks: { color: '#cbd5f5' } },
+                          y: { ticks: { color: '#cbd5f5' } },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-400">Aún no hay datos temporales.</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-slate-300">Últimos movimientos</p>
+                <div className="mt-2 space-y-2">
+                  {selectedIncomeData.recentTransactions.map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="rounded-xl border border-white/5 bg-black/15 px-3 py-2 text-sm text-slate-200"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{new Date(tx.transaction_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
+                        <span className="font-semibold text-emerald-200">+{formatAmount(getAmount(tx))}</span>
+                      </div>
+                      <p className="text-xs text-slate-400">
+                        {accountMap[tx.account_id]?.name ?? 'Cuenta'}
+                        {tx.notes ? ` · ${tx.notes}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-400">
+              Seleccioná una categoría de ingreso para analizar su detalle.
+            </p>
           )}
         </div>
       </div>
@@ -924,11 +1164,11 @@ export default function DashboardPage() {
             <div className="grid gap-4 md:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                 <p className="text-xs uppercase tracking-widest text-slate-400">Total período</p>
-                <p className="text-2xl font-semibold text-white">{currencyFormatter.format(selectedCategoryData.total)}</p>
+                <p className="text-2xl font-semibold text-white">{formatAmount(selectedCategoryData.total)}</p>
                 {typeof selectedCategoryData.previousTotal === 'number' && (
                   <p className="text-xs text-slate-400">
                     Vs período anterior:{' '}
-                    {currencyFormatter.format(selectedCategoryData.previousTotal)}{' '}
+                    {formatAmount(selectedCategoryData.previousTotal)}{' '}
                     {typeof selectedCategoryData.trend === 'number' ? (
                       <span className={selectedCategoryData.trend >= 0 ? 'text-rose-300' : 'text-emerald-300'}>
                         ({selectedCategoryData.trend >= 0 ? '+' : ''}
@@ -942,13 +1182,13 @@ export default function DashboardPage() {
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                 <p className="text-xs uppercase tracking-widest text-slate-400">Ticket promedio</p>
-                <p className="text-2xl font-semibold text-white">{currencyFormatter.format(selectedCategoryData.avgTicket)}</p>
+                <p className="text-2xl font-semibold text-white">{formatAmount(selectedCategoryData.avgTicket)}</p>
                 <p className="text-xs text-slate-400">Basado en {selectedCategoryData.count} movimientos</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                 <p className="text-xs uppercase tracking-widest text-slate-400">Movimiento más alto</p>
                 <p className="text-2xl font-semibold text-white">
-                  {currencyFormatter.format(parseFloat(selectedCategoryData.largestTransaction.amount_ars))}
+                  {formatAmount(selectedCategoryData.largestAmount)}
                 </p>
                 <p className="text-xs text-slate-400">
                   {new Date(selectedCategoryData.largestTransaction.transaction_date).toLocaleDateString('es-AR')} ·{' '}
@@ -958,7 +1198,7 @@ export default function DashboardPage() {
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                 <p className="text-xs uppercase tracking-widest text-slate-400">Última actividad</p>
                 <p className="text-2xl font-semibold text-white">
-                  {currencyFormatter.format(parseFloat(selectedCategoryData.recentTransactions[0].amount_ars))}
+                  {formatAmount(getAmount(selectedCategoryData.recentTransactions[0]))}
                 </p>
                 <p className="text-xs text-slate-400">
                   {new Date(selectedCategoryData.recentTransactions[0].transaction_date).toLocaleString('es-AR')}
@@ -1068,8 +1308,8 @@ export default function DashboardPage() {
                             {tx.subcategory_id ? (categoryMap[tx.subcategory_id]?.name ?? '') : ''}
                             {tx.notes ? ` · ${tx.notes}` : ''}
                           </td>
-                          <td className="py-1 text-right font-semibold text-rose-200">
-                            {currencyFormatter.format(parseFloat(tx.amount_ars))}
+                         <td className="py-1 text-right font-semibold text-rose-200">
+                            {formatAmount(getAmount(tx))}
                           </td>
                         </tr>
                       ))}
@@ -1096,8 +1336,7 @@ export default function DashboardPage() {
                   })}
                 </h2>
                 <p className="text-sm text-slate-400">
-                  Total {currencyFormatter.format(selectedDayDetail.total)} ·{' '}
-                  {selectedDayDetail.transactions.length} movimientos
+                  Total {formatAmount(selectedDayDetail.total)} · {selectedDayDetail.transactions.length} movimientos
                 </p>
               </div>
               <button
@@ -1112,7 +1351,7 @@ export default function DashboardPage() {
               {selectedDayDetail.transactions.map((tx) => {
                 const cat = tx.category_id ? categoryMap[tx.category_id] : null;
                 const account = accountMap[tx.account_id]?.name ?? 'Cuenta';
-                const amount = parseFloat(tx.amount_ars);
+                const amount = getAmount(tx);
                 return (
                   <div
                     key={tx.id}
@@ -1128,9 +1367,7 @@ export default function DashboardPage() {
                           })}
                         </p>
                       </div>
-                      <span className="text-sm font-semibold text-rose-200">
-                        -{currencyFormatter.format(amount)}
-                      </span>
+                      <span className="text-sm font-semibold text-rose-200">-{formatAmount(amount)}</span>
                     </div>
                     {tx.notes && <p className="mt-1 text-xs text-slate-400">{tx.notes}</p>}
                   </div>
