@@ -201,8 +201,8 @@ export default function BudgetsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6 pb-10">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-white">Presupuestos</h1>
           <p className="text-sm text-slate-400">Asigná montos objetivo por categoría y moneda.</p>
@@ -267,7 +267,7 @@ export default function BudgetsPage() {
               className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-sm"
             />
           </div>
-            <div className="flex gap-6 text-sm text-slate-300">
+            <div className="flex flex-wrap gap-4 text-sm text-slate-300">
               <div>
                 <p className="text-xs uppercase tracking-widest text-emerald-300">Ingresos objetivo</p>
                 <p className="text-lg font-semibold text-white">{amountFormatter.format(totals.income)}</p>
@@ -283,7 +283,7 @@ export default function BudgetsPage() {
       {loadingBudget ? (
         <div className="text-sm text-slate-400">Cargando presupuesto...</div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-white/5 bg-white/5 p-4">
             <h2 className="mb-3 text-lg font-semibold text-white">Ingresos</h2>
             {renderCategoryInputs(incomeCategories)}

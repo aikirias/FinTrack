@@ -90,9 +90,9 @@ export default function NewTransactionPage() {
   const selectedParent = flatCategories.find((cat) => String(cat.id) === form.category_id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl space-y-6 pb-10">
       <h1 className="text-2xl font-semibold">Nueva transacción</h1>
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-white/5 bg-white/5 p-6">
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-white/5 bg-white/5 p-4 md:p-6">
         <div className="flex flex-wrap gap-2 rounded-full border border-white/10 bg-black/20 p-1">
           {(['expense', 'income', 'transfer'] as const).map((type) => (
             <button
@@ -107,7 +107,7 @@ export default function NewTransactionPage() {
             </button>
           ))}
         </div>
-        <div className={`grid gap-4 ${transactionType === 'transfer' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+        <div className={`grid gap-4 ${transactionType === 'transfer' ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
           <div>
             <label className="text-sm text-slate-300">Cuenta</label>
             <select

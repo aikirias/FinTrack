@@ -669,15 +669,15 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6 pb-12">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
+          <h1 className="text-2xl font-semibold text-white sm:text-3xl">Dashboard</h1>
           <button
             type="button"
             onClick={handleExport}
             disabled={exportDisabled}
-            className={`rounded-full border border-white/10 px-4 py-2 text-sm font-semibold transition ${
+            className={`w-full rounded-full border border-white/10 px-3 py-2 text-sm font-semibold transition sm:w-auto sm:px-4 ${
               exportDisabled
                 ? 'cursor-not-allowed text-slate-500'
                 : 'text-white hover:border-white/40 hover:bg-white/10'
@@ -686,36 +686,40 @@ export default function DashboardPage() {
             Exportar CSV
           </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-2 rounded-full border border-white/10 bg-white/5 p-1">
-            {timeOptions.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setTimeRange(opt.value)}
-                className={`rounded-full px-4 py-1 text-sm font-semibold ${
-                  timeRange === opt.value ? 'bg-white text-primary' : 'text-slate-300'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="w-full rounded-2xl border border-white/10 bg-white/5 p-2">
+            <div className="flex items-center justify-between gap-2 sm:justify-start sm:flex-wrap">
+              {timeOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setTimeRange(opt.value)}
+                  className={`rounded-full px-3 py-2 text-sm font-semibold ${
+                    timeRange === opt.value ? 'bg-white text-primary' : 'text-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-2 rounded-full border border-white/10 bg-white/5 p-1">
-            {currencyOptions.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setBaseCurrency(opt.value)}
-                className={`rounded-full px-3 py-1 text-sm font-semibold ${
-                  baseCurrency === opt.value ? 'bg-white text-primary' : 'text-slate-300'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="w-full rounded-2xl border border-white/10 bg-white/5 p-2 sm:w-auto">
+            <div className="flex items-center justify-center gap-2">
+              {currencyOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setBaseCurrency(opt.value)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                    baseCurrency === opt.value ? 'bg-white text-primary' : 'text-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 md:gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
           <p className="text-sm text-slate-300">Balance</p>
           <p className="text-3xl font-semibold text-white">{formatAmount(stats.balance)}</p>
@@ -741,16 +745,20 @@ export default function DashboardPage() {
 
       <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
         <h3 className="mb-4 text-lg font-semibold">Evolución mensual</h3>
-        <Line
-          data={lineData}
-          options={{
-            plugins: { legend: { labels: { color: '#cbd5f5' } } },
-            scales: {
-              x: { ticks: { color: '#cbd5f5' } },
-              y: { ticks: { color: '#cbd5f5' } },
-            },
-          }}
-        />
+        <div className="w-full">
+          <Line
+            data={lineData}
+            options={{
+              plugins: { legend: { labels: { color: '#cbd5f5' } } },
+              maintainAspectRatio: false,
+              scales: {
+                x: { ticks: { color: '#cbd5f5' } },
+                y: { ticks: { color: '#cbd5f5' } },
+              },
+            }}
+            height={220}
+          />
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">

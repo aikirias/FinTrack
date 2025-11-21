@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
+from app.db import base  # noqa: F401  # ensure models are registered
 from app.crud import crud_account, crud_transaction, crud_user
 from app.schemas.transaction import TransactionCreate
 from app.schemas.user import UserCreate
@@ -108,32 +109,32 @@ def seed_demo_user(session: SessionLocal) -> None:
             return datetime(year, month, day, hour, 0, 0, tzinfo=timezone.utc).isoformat()
 
         # Income
-        make_tx(dt(3), usd_acc, \"USD\", \"1000\", \"Salario\", None, \"Salario mensual\")
+        make_tx(dt(3), usd_acc, "USD", "1000", "Salario", None, "Salario mensual")
 
         # Savings ~100 USD in BTC if available
         if btc_acc:
-            make_tx(dt(25), btc_acc, \"BTC\", \"0.0020\", None, None, \"Ahorro BTC\")
+            make_tx(dt(25), btc_acc, "BTC", "0.0020", None, None, "Ahorro BTC")
 
         # Housing: rent/expensas
-        make_tx(dt(7), ars_acc, \"ARS\", \"350000\", \"Hogar\", \"Alquiler\", \"Alquiler/expensas\")
+        make_tx(dt(7), ars_acc, "ARS", "350000", "Hogar", "Alquiler", "Alquiler/expensas")
 
         # Utilities
-        make_tx(dt(8), ars_acc, \"ARS\", \"25000\", \"Servicios\", \"Luz\", \"Luz\")
-        make_tx(dt(8), ars_acc, \"ARS\", \"20000\", \"Servicios\", \"Internet\", \"Internet\")
+        make_tx(dt(8), ars_acc, "ARS", "25000", "Servicios", "Luz", "Luz")
+        make_tx(dt(8), ars_acc, "ARS", "20000", "Servicios", "Internet", "Internet")
 
         # Food
-        make_tx(dt(12), ars_acc, \"ARS\", \"180000\", \"Comida\", \"Supermercado\", \"Supermercado\")
-        make_tx(dt(12), ars_acc, \"ARS\", \"40000\", \"Comida\", \"Restaurantes\", \"Salidas a comer\")
+        make_tx(dt(12), ars_acc, "ARS", "180000", "Comida", "Supermercado", "Supermercado")
+        make_tx(dt(12), ars_acc, "ARS", "40000", "Comida", "Restaurantes", "Salidas a comer")
 
         # Transport
-        make_tx(dt(15), ars_acc, \"ARS\", \"30000\", \"Transporte\", \"Transporte público\", \"Transporte público\")
+        make_tx(dt(15), ars_acc, "ARS", "30000", "Transporte", "Transporte público", "Transporte público")
 
         # Education / entertainment
-        make_tx(dt(18), ars_acc, \"ARS\", \"30000\", \"Ocio\", \"Cursos\", \"Cursos/online\")
-        make_tx(dt(18), ars_acc, \"ARS\", \"20000\", \"Ocio\", \"Shows\", \"Shows/entretenimiento\")
+        make_tx(dt(18), ars_acc, "ARS", "30000", "Ocio", "Cursos", "Cursos/online")
+        make_tx(dt(18), ars_acc, "ARS", "20000", "Ocio", "Shows", "Shows/entretenimiento")
 
         # Misc
-        make_tx(dt(22), ars_acc, \"ARS\", \"20000\", \"Compras Personales\", \"Perfumería\", \"Perfumería/higiene\")
+        make_tx(dt(22), ars_acc, "ARS", "20000", "Compras Personales", "Perfumería", "Perfumería/higiene")
 
 
 def init_default_data() -> None:

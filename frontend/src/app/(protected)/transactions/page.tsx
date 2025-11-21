@@ -203,7 +203,7 @@ export default function TransactionsPage() {
   return (
     <div>
       <div className="mb-6 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold">Movimientos</h1>
             <p className="text-sm text-slate-400">
@@ -219,7 +219,7 @@ export default function TransactionsPage() {
             Limpiar filtros
           </button>
         </div>
-        <div className="grid gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <input
             value={filters.search}
             onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
