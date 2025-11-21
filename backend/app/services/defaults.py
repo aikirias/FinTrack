@@ -86,6 +86,7 @@ DEFAULT_CATEGORIES: tuple[DefaultCategory, ...] = (
         name="Hogar",
         type=CategoryType.EXPENSE,
         children=(
+            DefaultCategory(name="Alquiler", type=CategoryType.EXPENSE),
             DefaultCategory(name="Limpieza", type=CategoryType.EXPENSE),
             DefaultCategory(name="Muebles", type=CategoryType.EXPENSE),
             DefaultCategory(name="Electrodomésticos", type=CategoryType.EXPENSE),
