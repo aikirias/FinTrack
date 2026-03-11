@@ -8,3 +8,4 @@ from app.models.category import Category  # noqa: F401
 from app.models.account import Account  # noqa: F401
 from app.models.transaction import Transaction  # noqa: F401
 from app.models.budget import Budget, BudgetItem  # noqa: F401
+from app.models.recurring_transaction import RecurringTransaction  # noqa: F401

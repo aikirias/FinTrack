@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session, aliased
 from app.models.account import Account
 from app.models.category import Category
 from app.models.transaction import Transaction
-from app.schemas.transaction import TransactionCreate, TransactionUpdate
+from app.schemas.transaction import TransactionCreate, TransactionTransferCreate, TransactionUpdate
 from app.services.conversion import convert_amounts
 from app.schemas.exchange_rate import ExchangeRateValues
 
 
-def list_transactions(
+def _build_transaction_query(
     db: Session,
     user_id: int,
     start: datetime | None = None,
@@ -22,16 +22,16 @@ def list_transactions(
     currency_code: str | None = None,
     category_type: str | None = None,
     search: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
-) -> list[Transaction]:
-    query = db.query(Transaction).filter(Transaction.user_id == user_id)
-
+):
     account_alias = aliased(Account)
     category_alias = aliased(Category)
 
-    query = query.outerjoin(account_alias, Transaction.account_id == account_alias.id)
-    query = query.outerjoin(category_alias, Transaction.category_id == category_alias.id)
+    query = (
+        db.query(Transaction)
+        .filter(Transaction.user_id == user_id)
+        .outerjoin(account_alias, Transaction.account_id == account_alias.id)
+        .outerjoin(category_alias, Transaction.category_id == category_alias.id)
+    )
 
     if start is not None:
         query = query.filter(Transaction.transaction_date >= start)
@@ -54,9 +54,43 @@ def list_transactions(
                 account_alias.name.ilike(pattern),
             )
         )
+    return query
 
+
+def count_transactions(
+    db: Session,
+    user_id: int,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    category_ids: Iterable[int] | None = None,
+    account_ids: Iterable[int] | None = None,
+    currency_code: str | None = None,
+    category_type: str | None = None,
+    search: str | None = None,
+) -> int:
+    return _build_transaction_query(
+        db, user_id, start, end, category_ids, account_ids, currency_code, category_type, search
+    ).count()
+
+
+def list_transactions(
+    db: Session,
+    user_id: int,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    category_ids: Iterable[int] | None = None,
+    account_ids: Iterable[int] | None = None,
+    currency_code: str | None = None,
+    category_type: str | None = None,
+    search: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[Transaction]:
     return (
-        query.order_by(desc(Transaction.transaction_date))
+        _build_transaction_query(
+            db, user_id, start, end, category_ids, account_ids, currency_code, category_type, search
+        )
+        .order_by(desc(Transaction.transaction_date))
         .offset(offset)
         .limit(limit)
         .all()
@@ -145,6 +179,56 @@ def update_transaction(
     db.commit()
     db.refresh(transaction)
     return transaction
+
+
+def create_transfer(
+    db: Session,
+    user_id: int,
+    tf_in: TransactionTransferCreate,
+    rates: ExchangeRateValues,
+    exchange_rate_id: int | None,
+) -> tuple[Transaction, Transaction]:
+    amount_ars, amount_usd, amount_btc = convert_amounts(
+        tf_in.amount_original, tf_in.currency_code, rates, tf_in.rate_type
+    )
+
+    out_tx = Transaction(
+        user_id=user_id,
+        account_id=tf_in.from_account_id,
+        transaction_date=tf_in.transaction_date,
+        currency_code=tf_in.currency_code,
+        rate_type=tf_in.rate_type,
+        amount_original=tf_in.amount_original,
+        amount_ars=amount_ars,
+        amount_usd=amount_usd,
+        amount_btc=amount_btc,
+        notes=tf_in.notes,
+        exchange_rate_id=exchange_rate_id,
+        transfer_direction="out",
+    )
+    db.add(out_tx)
+    db.flush()
+
+    in_tx = Transaction(
+        user_id=user_id,
+        account_id=tf_in.to_account_id,
+        transaction_date=tf_in.transaction_date,
+        currency_code=tf_in.currency_code,
+        rate_type=tf_in.rate_type,
+        amount_original=tf_in.amount_original,
+        amount_ars=amount_ars,
+        amount_usd=amount_usd,
+        amount_btc=amount_btc,
+        notes=tf_in.notes,
+        exchange_rate_id=exchange_rate_id,
+        transfer_direction="in",
+        transfer_pair_id=out_tx.id,
+    )
+    db.add(in_tx)
+    db.commit()
+    db.refresh(out_tx)
+    db.refresh(in_tx)
+    return out_tx, in_tx
 
 
 def delete_transaction(db: Session, transaction: Transaction) -> None:

@@ -9,6 +9,7 @@ const links = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/new', label: 'Nueva transacción' },
   { href: '/transactions', label: 'Movimientos' },
+  { href: '/recurring', label: 'Recurrentes' },
   { href: '/budgets', label: 'Presupuestos' },
   { href: '/categories', label: 'Categorías' },
   { href: '/accounts', label: 'Cuentas' },

@@ -36,6 +36,15 @@ export interface Transaction {
   amount_btc: string;
   notes?: string | null;
   rate_type: string;
+  transfer_pair_id?: number | null;
+  transfer_direction?: 'in' | 'out' | null;
+}
+
+export interface AccountBalance {
+  account_id: number;
+  balance_ars: number;
+  balance_usd: number;
+  balance_btc: number;
 }
 
 export interface ExchangeRate {
@@ -98,6 +107,7 @@ export interface BudgetItem {
   id: number;
   category_id: number;
   amount: string;
+  actual_amount?: string | null;
 }
 
 export interface Budget {
@@ -106,6 +116,25 @@ export interface Budget {
   currency_code: string;
   name?: string | null;
   items: BudgetItem[];
+}
+
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface RecurringTransaction {
+  id: number;
+  name: string;
+  account_id: number | null;
+  category_id: number | null;
+  subcategory_id: number | null;
+  amount_original: string;
+  currency_code: string;
+  rate_type: string;
+  notes?: string | null;
+  frequency: RecurringFrequency;
+  next_run_date: string;
+  last_run_date?: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface ExchangeRateReprocessResult {

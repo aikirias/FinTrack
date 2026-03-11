@@ -15,6 +15,7 @@ class BudgetItemCreate(BudgetItemBase):
 
 class BudgetItemOut(BudgetItemBase):
     id: int
+    actual_amount: Decimal | None = None
 
     class Config:
         from_attributes = True

@@ -109,6 +109,27 @@ export default function BudgetsPage() {
     setDrafts((prev) => ({ ...prev, [categoryId]: value }));
   };
 
+  const handleCopyPreviousMonth = async () => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const prevDate = month === 1
+      ? new Date(year - 1, 11, 1)
+      : new Date(year, month - 2, 1);
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}-01`;
+    try {
+      const data = (await api.getBudgets({ month: prevMonth, currency })) as import('@/types').Budget[];
+      if (!data.length) {
+        notify('error', 'No hay presupuesto en el mes anterior para copiar.');
+        return;
+      }
+      const nextDrafts: Record<number, string> = {};
+      data[0].items.forEach((item) => { nextDrafts[item.category_id] = item.amount; });
+      setDrafts(nextDrafts);
+      notify('success', 'Montos copiados del mes anterior.');
+    } catch (err) {
+      notify('error', (err as Error).message);
+    }
+  };
+
   const buildPayloadItems = () => {
     return Object.entries(drafts)
       .map(([categoryId, value]) => {
@@ -166,32 +187,71 @@ export default function BudgetsPage() {
     }
   };
 
+  const actualMap = useMemo<Record<number, number>>(() => {
+    if (!budget) return {};
+    const map: Record<number, number> = {};
+    budget.items.forEach((item) => {
+      if (item.actual_amount != null) {
+        map[item.category_id] = parseFloat(item.actual_amount);
+      }
+    });
+    return map;
+  }, [budget]);
+
   const renderCategoryInputs = (list: Category[]) => {
     if (!list.length) {
       return <p className="text-sm text-slate-400">No hay categorías disponibles.</p>;
     }
     return (
       <div className="space-y-3">
-        {list.map((category) => (
-          <div
-            key={category.id}
-            className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/20 px-4 py-3"
-          >
-            <div>
-              <p className="font-semibold text-white">{category.name}</p>
-              <p className="text-xs text-slate-400">Objetivo mensual</p>
+        {list.map((category) => {
+          const budgeted = parseFloat(drafts[category.id] ?? '0') || 0;
+          const actual = actualMap[category.id] ?? null;
+          const isExpense = category.type === 'expense';
+          const isOver = actual !== null && budgeted > 0 && isExpense && actual > budgeted;
+          const pct = actual !== null && budgeted > 0 ? Math.min((actual / budgeted) * 100, 100) : null;
+
+          return (
+            <div
+              key={category.id}
+              className={`rounded-2xl border px-4 py-3 ${isOver ? 'border-rose-500/40 bg-rose-950/20' : 'border-white/5 bg-black/20'}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-white">{category.name}</p>
+                    {isOver && <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-xs font-semibold text-rose-300">Excedido</span>}
+                  </div>
+                  {actual !== null ? (
+                    <p className={`text-xs ${isOver ? 'text-rose-300' : 'text-slate-400'}`}>
+                      Real: {amountFormatter.format(actual)}
+                      {budgeted > 0 && ` / Objetivo: ${amountFormatter.format(budgeted)}`}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-400">Objetivo mensual</p>
+                  )}
+                  {pct !== null && (
+                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className={`h-full rounded-full transition-all ${isOver ? 'bg-rose-400' : 'bg-emerald-400'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={drafts[category.id] ?? ''}
+                  onChange={(e) => handleDraftChange(category.id, e.target.value)}
+                  className="w-32 shrink-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-right text-sm"
+                  placeholder="0"
+                />
+              </div>
             </div>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={drafts[category.id] ?? ''}
-              onChange={(e) => handleDraftChange(category.id, e.target.value)}
-              className="w-32 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-right text-sm"
-              placeholder="0"
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -227,6 +287,13 @@ export default function BudgetsPage() {
               </button>
             ))}
           </div>
+          <button
+            onClick={handleCopyPreviousMonth}
+            disabled={saving || loadingBudget}
+            className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5 disabled:opacity-40"
+          >
+            Copiar mes anterior
+          </button>
           <button
             onClick={handleSave}
             disabled={saving || loadingBudget}

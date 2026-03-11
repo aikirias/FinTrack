@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -21,15 +23,36 @@ from app.schemas.exchange_rate import (
 )
 from app.services.conversion import convert_amounts
 
+logger = logging.getLogger(__name__)
+
+_MAX_RETRIES = 3
+_RETRY_BACKOFF = 2.0  # seconds, doubles each attempt
+
 
 def _to_decimal(value: Any) -> Decimal:
     return Decimal(str(value))
 
 
+def _fetch_with_retry(client: httpx.Client, url: str, **kwargs: Any) -> httpx.Response:
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            response = client.get(url, **kwargs)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPError as exc:
+            last_exc = exc
+            wait = _RETRY_BACKOFF * (2 ** attempt)
+            logger.warning("HTTP error fetching %s (attempt %d/%d): %s — reintentando en %.1fs", url, attempt + 1, _MAX_RETRIES, exc, wait)
+            if attempt < _MAX_RETRIES - 1:
+                time.sleep(wait)
+    raise RuntimeError(f"No se pudo obtener {url} luego de {_MAX_RETRIES} intentos") from last_exc
+
+
 def fetch_remote_rates() -> tuple[ExchangeRateValues, dict[str, Any]]:
+    logger.info("Obteniendo cotizaciones remotas")
     with httpx.Client(timeout=10.0) as client:
-        dolar_response = client.get(str(settings.dolar_api_url))
-        dolar_response.raise_for_status()
+        dolar_response = _fetch_with_retry(client, str(settings.dolar_api_url))
         dolar_payload = dolar_response.json()
 
         oficial_rate = None
@@ -43,11 +66,11 @@ def fetch_remote_rates() -> tuple[ExchangeRateValues, dict[str, Any]]:
         if oficial_rate is None:
             raise ValueError("No se pudo obtener la cotización oficial USD/ARS")
 
-        coingecko_response = client.get(
+        coingecko_response = _fetch_with_retry(
+            client,
             str(settings.coingecko_api_url),
             params={"ids": "bitcoin", "vs_currencies": "usd,ars"},
         )
-        coingecko_response.raise_for_status()
         coingecko_payload = coingecko_response.json()
         bitcoin_data = coingecko_payload.get("bitcoin")
         if not bitcoin_data:
@@ -68,6 +91,7 @@ def fetch_remote_rates() -> tuple[ExchangeRateValues, dict[str, Any]]:
         "coingecko": coingecko_payload,
     }
 
+    logger.info("Cotizaciones obtenidas: USD/ARS=%.2f, BTC/USD=%.2f", oficial_rate, btc_usd)
     return values, metadata
 
 

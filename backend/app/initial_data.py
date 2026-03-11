@@ -155,7 +155,8 @@ def init_default_data() -> None:
 
         session.commit()
 
-        seed_demo_user(session)
+        if settings.seed_demo_user:
+            seed_demo_user(session)
     finally:
         session.close()
 

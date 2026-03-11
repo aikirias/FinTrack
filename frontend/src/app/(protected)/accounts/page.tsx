@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
-import type { Account, Category, Transaction } from '@/types';
+import type { Account, AccountBalance } from '@/types';
 
 const arsFormatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -10,8 +10,7 @@ const btcFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 8, 
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [balances, setBalances] = useState<AccountBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: '', currency_code: 'ARS', description: '' });
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -23,14 +22,12 @@ export default function AccountsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [acct, txs, cats] = await Promise.all([
+      const [acct, bals] = await Promise.all([
         api.getAccounts(),
-        api.getTransactions(),
-        api.getCategories(),
+        api.getAccountBalances(),
       ]);
       setAccounts(acct as Account[]);
-      setTransactions(txs as Transaction[]);
-      setCategories(cats as Category[]);
+      setBalances(bals as AccountBalance[]);
     } finally {
       setLoading(false);
     }
@@ -46,45 +43,20 @@ export default function AccountsPage() {
     return () => clearTimeout(timeout);
   }, [message]);
 
-  const categoryTypeMap = useMemo(() => {
-    const map: Record<number, Category['type'] | undefined> = {};
-    const walk = (nodes: Category[]) => {
-      nodes.forEach((cat) => {
-        map[cat.id] = cat.type;
-        if (cat.children) walk(cat.children);
-      });
-    };
-    walk(categories);
-    return map;
-  }, [categories]);
-
-  const accountMap = useMemo(() => {
-    const map: Record<number, Account> = {};
-    accounts.forEach((acc) => {
-      map[acc.id] = acc;
-    });
-    return map;
-  }, [accounts]);
-
   const balanceMap = useMemo(() => {
-    const map: Record<number, number> = {};
-    transactions.forEach((tx) => {
-      const account = accountMap[tx.account_id];
-      if (!account) return;
-      const categoryType = tx.category_id ? categoryTypeMap[tx.category_id] : undefined;
-      if (categoryType !== 'income' && categoryType !== 'expense') return;
-      let amount = 0;
-      if (account.currency_code === 'USD') amount = parseFloat(tx.amount_usd);
-      else if (account.currency_code === 'BTC') amount = parseFloat(tx.amount_btc);
-      else amount = parseFloat(tx.amount_ars);
-      if (Number.isNaN(amount)) amount = 0;
-      map[account.id] = (map[account.id] || 0) + (categoryType === 'income' ? amount : -amount);
-    });
+    const map: Record<number, AccountBalance> = {};
+    balances.forEach((b) => { map[b.account_id] = b; });
     return map;
-  }, [transactions, accountMap, categoryTypeMap]);
+  }, [balances]);
 
-  const getBalance = (accountId: number) => balanceMap[accountId] ?? 0;
-  const hasBalance = (accountId: number) => Math.abs(getBalance(accountId)) > 0.01;
+  const getBalance = (account: Account): number => {
+    const b = balanceMap[account.id];
+    if (!b) return 0;
+    if (account.currency_code === 'USD') return b.balance_usd;
+    if (account.currency_code === 'BTC') return b.balance_btc;
+    return b.balance_ars;
+  };
+  const hasBalance = (account: Account) => Math.abs(getBalance(account)) > 0.01;
 
   const formatByCurrency = (code: string, value: number) => {
     const adjusted = Math.abs(value) < 0.00001 ? 0 : value;
@@ -136,7 +108,7 @@ export default function AccountsPage() {
 
   const handleArchiveToggle = async (account: Account) => {
     const goingToArchive = !account.is_archived;
-    if (goingToArchive && hasBalance(account.id)) {
+    if (goingToArchive && hasBalance(account)) {
       setMessage({ type: 'error', text: 'No podés suspender una cuenta con saldo.' });
       return;
     }
@@ -153,7 +125,7 @@ export default function AccountsPage() {
   };
 
   const handleDelete = async (account: Account) => {
-    if (hasBalance(account.id)) {
+    if (hasBalance(account)) {
       setMessage({ type: 'error', text: 'No podés eliminar una cuenta con saldo.' });
       return;
     }
@@ -204,7 +176,7 @@ export default function AccountsPage() {
           </thead>
           <tbody>
             {accounts.map((account) => {
-              const balance = getBalance(account.id);
+              const balance = getBalance(account);
               const balanceLabel =
                 balance === 0 ? '0' : formatByCurrency(account.currency_code, balance);
               const isEditing = editingId === account.id;
@@ -293,14 +265,14 @@ export default function AccountsPage() {
                         <button
                           className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200 hover:bg-white/5"
                           onClick={() => handleArchiveToggle(account)}
-                          disabled={actionLoading === account.id || (!account.is_archived && hasBalance(account.id))}
+                          disabled={actionLoading === account.id || (!account.is_archived && hasBalance(account))}
                         >
                           {account.is_archived ? 'Reactivar' : 'Suspender'}
                         </button>
                         <button
                           className="rounded-full border border-rose-500/40 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/10"
                           onClick={() => handleDelete(account)}
-                          disabled={actionLoading === account.id || hasBalance(account.id)}
+                          disabled={actionLoading === account.id || hasBalance(account)}
                         >
                           Eliminar
                         </button>

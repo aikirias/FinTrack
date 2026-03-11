@@ -50,11 +50,7 @@ export async function apiRequest<T = unknown>(path: string, options: RequestOpti
     return null as T;
   }
 
-  try {
-    return await response.json();
-  } catch {
-    return null as T;
-  }
+  return await response.json();
 }
 
 interface TransactionQueryParams {
@@ -95,8 +91,28 @@ interface ReprocessPayload {
 
 export const api = {
   getAccounts: () => apiRequest('/accounts/'),
+  getAccountBalances: () => apiRequest('/accounts/balances'),
   getCategories: () => apiRequest('/categories/'),
   getTransactions: (params?: TransactionQueryParams) => apiRequest(`/transactions/${buildQuery(params)}`),
+  getTransactionsWithTotal: async (params?: TransactionQueryParams): Promise<{ data: unknown[]; total: number }> => {
+    const response = await fetch(`${API_URL}/transactions/${buildQuery(params)}`, {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      let detail = 'Error inesperado';
+      try {
+        const data = await response.json();
+        detail = (data as Record<string, unknown>)?.detail as string ?? JSON.stringify(data);
+      } catch {
+        detail = await response.text();
+      }
+      throw new Error(detail);
+    }
+    const data = await response.json();
+    const total = parseInt(response.headers.get('X-Total-Count') ?? String((data as unknown[]).length), 10);
+    return { data: data as unknown[], total };
+  },
   getLatestRates: () => apiRequest('/exchange-rates/latest'),
   getReportSummary: (params?: ReportQueryParams) => apiRequest(`/reports/summary${buildQuery(params)}`),
   getReportTimeseries: (params?: ReportQueryParams & { interval?: 'month' | 'day' }) =>
@@ -105,6 +121,8 @@ export const api = {
     apiRequest(`/reports/categories${buildQuery(params)}`),
   createTransaction: (payload: Record<string, unknown>) =>
     apiRequest('/transactions/', { method: 'POST', body: JSON.stringify(payload) }),
+  createTransfer: (payload: Record<string, unknown>) =>
+    apiRequest('/transactions/transfer', { method: 'POST', body: JSON.stringify(payload) }),
   createCategory: (payload: Record<string, unknown>) =>
     apiRequest('/categories/', { method: 'POST', body: JSON.stringify(payload) }),
   updateCategory: (id: number, payload: Record<string, unknown>) =>
@@ -119,6 +137,20 @@ export const api = {
   updateBudget: (id: number, payload: Record<string, unknown>) =>
     apiRequest(`/budgets/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   deleteBudget: (id: number) => apiRequest(`/budgets/${id}`, { method: 'DELETE', skipJson: true }),
+  updateTransaction: (id: number, payload: Record<string, unknown>) =>
+    apiRequest(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteTransaction: (id: number) => apiRequest(`/transactions/${id}`, { method: 'DELETE', skipJson: true }),
   reprocessExchangeRates: (payload: ReprocessPayload) =>
     apiRequest('/exchange-rates/reprocess', { method: 'POST', body: JSON.stringify(payload) }),
+  exportTransactionsCsv: (params?: Omit<TransactionQueryParams, 'limit' | 'offset'>) => {
+    const url = `${API_URL}/transactions/export/csv${buildQuery(params)}`;
+    return fetch(url, { credentials: 'include' });
+  },
+  getRecurringTransactions: () => apiRequest('/recurring-transactions/'),
+  createRecurringTransaction: (payload: Record<string, unknown>) =>
+    apiRequest('/recurring-transactions/', { method: 'POST', body: JSON.stringify(payload) }),
+  updateRecurringTransaction: (id: number, payload: Record<string, unknown>) =>
+    apiRequest(`/recurring-transactions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteRecurringTransaction: (id: number) =>
+    apiRequest(`/recurring-transactions/${id}`, { method: 'DELETE', skipJson: true }),
 };

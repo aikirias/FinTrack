@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class UserBase(BaseModel):
@@ -14,7 +14,14 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     timezone: str | None = None
+    current_password: str | None = None
     password: str | None = Field(default=None, min_length=8)
+
+    @field_validator("current_password")
+    @classmethod
+    def current_password_required_with_new(cls, v: str | None, info: object) -> str | None:
+        # Validated at route level since we need the DB user; just pass through
+        return v
 
 
 class UserLogin(BaseModel):

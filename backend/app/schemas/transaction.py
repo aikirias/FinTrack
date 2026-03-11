@@ -36,6 +36,18 @@ class TransactionUpdate(BaseModel):
     manual_rates: ExchangeRateOverride | None = None
 
 
+class TransactionTransferCreate(BaseModel):
+    from_account_id: int
+    to_account_id: int
+    amount_original: Decimal = Field(gt=0)
+    currency_code: str = Field(pattern=r"^[A-Z]{3}$")
+    rate_type: Literal["official", "blue"] = "official"
+    transaction_date: datetime
+    notes: str | None = Field(default=None, max_length=500)
+    exchange_rate_id: int | None = None
+    manual_rates: ExchangeRateOverride | None = None
+
+
 class TransactionOut(TransactionBase):
     id: int
     amount_ars: Decimal
@@ -43,6 +55,8 @@ class TransactionOut(TransactionBase):
     amount_btc: Decimal
     exchange_rate_id: int | None
     exchange_rate: ExchangeRateOut | None
+    transfer_pair_id: int | None = None
+    transfer_direction: str | None = None
     created_at: datetime
     updated_at: datetime
 

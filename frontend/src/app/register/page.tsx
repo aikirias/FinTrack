@@ -64,14 +64,35 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="text-sm text-slate-200" htmlFor="timezone">Zona horaria</label>
-            <input
+            <select
               id="timezone"
-              type="text"
               className="mt-1 w-full rounded-xl border border-white/10 bg-primary/40 px-4 py-2 text-white focus:outline-none"
               value={form.timezone}
               onChange={(e) => setForm({ ...form, timezone: e.target.value })}
               required
-            />
+            >
+              <optgroup label="Argentina">
+                <option value="America/Argentina/Buenos_Aires">Buenos Aires (ART)</option>
+                <option value="America/Argentina/Cordoba">Córdoba (ART)</option>
+                <option value="America/Argentina/Mendoza">Mendoza (ART)</option>
+              </optgroup>
+              <optgroup label="Latinoamérica">
+                <option value="America/Santiago">Santiago (CLT)</option>
+                <option value="America/Lima">Lima (PET)</option>
+                <option value="America/Bogota">Bogotá (COT)</option>
+                <option value="America/Caracas">Caracas (VET)</option>
+                <option value="America/La_Paz">La Paz (BOT)</option>
+                <option value="America/Asuncion">Asunción (PYT)</option>
+                <option value="America/Montevideo">Montevideo (UYT)</option>
+                <option value="America/Sao_Paulo">São Paulo (BRT)</option>
+                <option value="America/Mexico_City">Ciudad de México (CST)</option>
+              </optgroup>
+              <optgroup label="Otras">
+                <option value="UTC">UTC</option>
+                <option value="America/New_York">Nueva York (ET)</option>
+                <option value="Europe/Madrid">Madrid (CET)</option>
+              </optgroup>
+            </select>
           </div>
           {error && <p className="text-sm text-rose-400">{error}</p>}
           <button

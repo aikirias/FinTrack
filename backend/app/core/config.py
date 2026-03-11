@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     )
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    seed_demo_user: bool = Field(default=True, alias="SEED_DEMO_USER")
 
     @field_validator("cors_origins", mode="before")
     @classmethod

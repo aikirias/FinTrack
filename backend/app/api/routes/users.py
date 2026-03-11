@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.core.security import verify_password
 from app.crud import crud_user
 from app.db.session import get_db
 from app.models.user import User
@@ -23,6 +24,19 @@ def update_user_me(
 ) -> UserOut:
     user = crud_user.get_user(db, current_user.id)
     if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+
+    if payload.password is not None:
+        if not payload.current_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Se requiere la contraseña actual para cambiar la contraseña",
+            )
+        if not verify_password(payload.current_password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La contraseña actual es incorrecta",
+            )
+
     updated = crud_user.update_user(db, user, payload)
     return UserOut.model_validate(updated)

@@ -59,21 +59,15 @@ export default function NewTransactionPage() {
     });
 
     if (transactionType === 'transfer') {
-      await api.createTransaction(
-        makePayload({
-          account_id: Number(form.account_id),
-          category_id: null,
-          subcategory_id: null,
-        })
-      );
-      await api.createTransaction(
-        makePayload({
-          account_id: Number(form.target_account_id),
-          category_id: null,
-          subcategory_id: null,
-          amount_original: String(-Number(form.amount_original)),
-        })
-      );
+      await api.createTransfer({
+        from_account_id: Number(form.account_id),
+        to_account_id: Number(form.target_account_id),
+        transaction_date: timestamp,
+        currency_code: form.currency_code,
+        rate_type: form.rate_type,
+        amount_original: form.amount_original,
+        notes: form.notes || null,
+      });
     } else {
       await api.createTransaction(
         makePayload({

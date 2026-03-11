@@ -65,6 +65,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [rates, setRates] = useState<ExchangeRate | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<(typeof timeOptions)[number]['value']>('3m');
   const [baseCurrency, setBaseCurrency] = useState<'ARS' | 'USD' | 'BTC'>('ARS');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
@@ -177,6 +178,7 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const [acct, cats, txs, rate] = await Promise.all([
           api.getAccounts(),
@@ -188,6 +190,8 @@ export default function DashboardPage() {
         setCategories(cats as Category[]);
         setTransactions(txs as Transaction[]);
         setRates(rate as ExchangeRate);
+      } catch (err) {
+        setLoadError((err as Error).message ?? 'Error al cargar los datos');
       } finally {
         setLoading(false);
       }
@@ -666,6 +670,21 @@ export default function DashboardPage() {
 
   if (loading) {
     return <div className="text-slate-300">Cargando datos...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-rose-500/30 bg-rose-950/20 px-6 py-8 text-center">
+        <p className="text-lg font-semibold text-rose-300">Error al cargar el dashboard</p>
+        <p className="mt-1 text-sm text-slate-400">{loadError}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
   }
 
   return (
