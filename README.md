@@ -4,7 +4,7 @@ FinTrack es un MVP completo para registrar ingresos y gastos multiusuario con co
 
 - **Frontend** en Next.js + React + Tailwind para dashboards responsive, carga de movimientos, administración de cuentas y categorías.
 - **Backend** en FastAPI + SQLAlchemy + Alembic con autenticación JWT por cookie HttpOnly, scheduler para cotizaciones y tests en pytest.
-- **Base de datos** PostgreSQL 15.
+- **Base de datos** PostgreSQL. El Compose local usa PostgreSQL 15; el despliegue del homelab, definido en `aikirias/homelab-home`, usa PostgreSQL 17.
 
 El objetivo es simplificar el seguimiento de ingresos (USD), gastos (ARS) y ahorros (BTC) conservando la cotización utilizada en cada registro.
 
@@ -94,9 +94,6 @@ Las pruebas cubren:
 
 Las respuestas se almacenan en la tabla `exchange_rates` y se referencian desde cada transacción para mantener trazabilidad.
 
-## Próximos pasos sugeridos
-- Agregar paginación y filtros más avanzados al listado de transacciones.
-- Incorporar presupuestos mensuales y alertas por categoría.
-- Añadir soporte para adjuntar comprobantes (archivos) a cada movimiento.
+## Trabajo futuro
 
-¡Listo! Con este stack podés monitorear tu flujo de dinero en Argentina sin perder de vista el impacto de las cotizaciones.
+Las mejoras no implementadas se mantienen separadas en [TODO.md](TODO.md).
