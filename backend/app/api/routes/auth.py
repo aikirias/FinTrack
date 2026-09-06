@@ -26,7 +26,9 @@ def _set_auth_cookie(response: Response, token: str, expires_minutes: int) -> No
         "expires": expires,
         "httponly": True,
         "samesite": "lax",
-        "secure": settings.app_env == "production",
+        "secure": settings.cookie_secure
+        if settings.cookie_secure is not None
+        else settings.app_env == "production",
     }
     if settings.cookie_domain:
         cookie_kwargs["domain"] = settings.cookie_domain
