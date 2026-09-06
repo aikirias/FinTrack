@@ -23,7 +23,7 @@ jobs:
           DATABASE_URL: sqlite:///./test.db
           JWT_SECRET: ci-only-secret-with-at-least-32-bytes
           SEED_DEMO_USER: "false"
-        run: pytest -q
+        run: python -m pytest -q
 
   frontend:
     runs-on: ubuntu-latest
