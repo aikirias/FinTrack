@@ -1,3 +1,4 @@
+import json
 from functools import lru_cache
 from typing import List
 
@@ -12,6 +13,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=60 * 24, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     cookie_domain: str | None = Field(default=None, alias="COOKIE_DOMAIN")
+    cookie_secure: bool | None = Field(default=None, alias="COOKIE_SECURE")
     cors_origins: List[str] = Field(default_factory=list, alias="CORS_ORIGINS")
 
     scheduler_timezone: str = Field(default="UTC", alias="SCHEDULER_TIMEZONE")
@@ -33,6 +35,11 @@ class Settings(BaseSettings):
             return value
         if not value:
             return []
+        if value.lstrip().startswith("["):
+            parsed = json.loads(value)
+            if not isinstance(parsed, list) or not all(isinstance(origin, str) for origin in parsed):
+                raise ValueError("CORS_ORIGINS JSON value must be a list of strings")
+            return parsed
         return [origin.strip() for origin in value.split(",") if origin.strip()]
 
     class Config:

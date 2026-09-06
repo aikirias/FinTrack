@@ -477,17 +477,18 @@ export default function DashboardPage() {
       const duration = Math.max(1, periodEnd.getTime() - periodStart.getTime());
       const previousStart = new Date(periodStart.getTime() - duration);
       const previousEnd = periodStart;
-      previousTotal = transactions
+      const previousPeriodTotal = transactions
         .filter((tx) => {
           if (tx.category_id !== selectedCategoryId) return false;
           const txDate = new Date(tx.transaction_date);
           return txDate >= previousStart && txDate < previousEnd;
         })
         .reduce((sum, tx) => sum + getAmount(tx), 0);
-      if (previousTotal === 0) {
+      previousTotal = previousPeriodTotal;
+      if (previousPeriodTotal === 0) {
         trend = null;
       } else {
-        trend = (total - previousTotal) / previousTotal;
+        trend = (total - previousPeriodTotal) / previousPeriodTotal;
       }
     }
 

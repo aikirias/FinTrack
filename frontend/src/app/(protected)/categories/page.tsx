@@ -91,7 +91,12 @@ export default function CategoriesPage() {
   };
 
   const startEdit = (category: Category) => {
-    setEditing({ id: category.id, name: category.name, type: category.type as CategoryType, parent_id: category.parent_id });
+    setEditing({
+      id: category.id,
+      name: category.name,
+      type: category.type as CategoryType,
+      parent_id: category.parent_id ?? null,
+    });
   };
 
   const handleUpdate = async () => {

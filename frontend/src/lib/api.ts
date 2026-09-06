@@ -6,10 +6,11 @@ interface RequestOptions extends RequestInit {
 
 type QueryValue = string | number | boolean | Array<string | number>;
 
-const buildQuery = (params?: Record<string, QueryValue | null | undefined>) => {
+const buildQuery = <T extends object>(params?: T) => {
   if (!params) return '';
   const search = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(params).forEach(([key, rawValue]) => {
+    const value = rawValue as QueryValue | null | undefined;
     if (value === undefined || value === null || value === '') return;
     if (Array.isArray(value)) {
       value.forEach((item) => {
@@ -53,7 +54,7 @@ export async function apiRequest<T = unknown>(path: string, options: RequestOpti
   return await response.json();
 }
 
-interface TransactionQueryParams {
+export interface TransactionQueryParams {
   start?: string;
   end?: string;
   limit?: number;

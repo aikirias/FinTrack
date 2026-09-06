@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, type TransactionQueryParams } from '@/lib/api';
 import type { Account, Category, Transaction } from '@/types';
 
 const arsFormatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
@@ -80,14 +80,16 @@ export default function TransactionsPage() {
     try {
       const currentFilters = filtersRef.current;
       const effectiveOffset = replace ? 0 : offsetRef.current;
-      const params = {
+      const params: TransactionQueryParams = {
         limit: PAGE_SIZE,
         offset: effectiveOffset,
         start: currentFilters.startDate ? `${currentFilters.startDate}T00:00:00Z` : undefined,
         end: currentFilters.endDate ? `${currentFilters.endDate}T23:59:59Z` : undefined,
         account_ids: currentFilters.accountId ? [Number(currentFilters.accountId)] : undefined,
         currency_code: currentFilters.currency || undefined,
-        category_type: currentFilters.type || undefined,
+        category_type: currentFilters.type
+          ? (currentFilters.type as TransactionQueryParams['category_type'])
+          : undefined,
         search: currentFilters.search || undefined,
       };
       const { data, total } = await api.getTransactionsWithTotal(params);
