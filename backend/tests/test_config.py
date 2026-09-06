@@ -19,3 +19,13 @@ def test_cors_origins_accepts_comma_separated_format():
     )
 
     assert settings.cors_origins == ["https://one.example", "https://two.example"]
+
+
+def test_cors_origins_accepts_empty_environment_value(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///test.db")
+    monkeypatch.setenv("JWT_SECRET", "test-secret-with-at-least-32-bytes")
+    monkeypatch.setenv("CORS_ORIGINS", "")
+
+    settings = Settings()
+
+    assert settings.cors_origins == []
