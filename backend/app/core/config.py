@@ -1,9 +1,9 @@
 import json
 from functools import lru_cache
-from typing import List
+from typing import Annotated, List
 
 from pydantic import Field, HttpUrl, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode
 
 
 class Settings(BaseSettings):
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=60 * 24, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     cookie_domain: str | None = Field(default=None, alias="COOKIE_DOMAIN")
     cookie_secure: bool | None = Field(default=None, alias="COOKIE_SECURE")
-    cors_origins: List[str] = Field(default_factory=list, alias="CORS_ORIGINS")
+    cors_origins: Annotated[List[str], NoDecode] = Field(default_factory=list, alias="CORS_ORIGINS")
 
     scheduler_timezone: str = Field(default="UTC", alias="SCHEDULER_TIMEZONE")
     rate_refresh_hour: int = Field(default=3, alias="RATE_REFRESH_HOUR")
