@@ -7,4 +7,3 @@ If new work is discovered during another task, ask the owner before creating an 
 - [#6 — Agregar paginación y filtros avanzados al listado de transacciones](https://github.com/aikirias/FinTrack/issues/6)
 - [#7 — Incorporar presupuestos mensuales y alertas por categoría](https://github.com/aikirias/FinTrack/issues/7)
 - [#8 — Permitir adjuntar comprobantes a cada movimiento](https://github.com/aikirias/FinTrack/issues/8)
-- [#10 — Pin actions/checkout to a reviewed commit SHA](https://github.com/aikirias/FinTrack/issues/10)
